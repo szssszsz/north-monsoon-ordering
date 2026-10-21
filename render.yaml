@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: north-monsoon-banquet
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm ci --include=dev && npm run check && npm run build
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production
+      - key: ADMIN_PASSWORD
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: north-monsoon-orders
+          property: connectionString
+
+databases:
+  - name: north-monsoon-orders
+    databaseName: monsoon_orders
+    plan: free
+    region: singapore
+    ipAllowList: []

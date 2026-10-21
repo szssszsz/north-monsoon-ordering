@@ -47,5 +47,12 @@ test('full booking lifecycle, isolation, validation, idempotency and admin acces
   await new Promise(r=>secondApp.close(r));
   assert.equal((await a('/healthz')).status,200);
   const image=await fetch(base+'/images/landscape.webp');assert.equal(image.status,200);assert.equal(image.headers.get('content-type'),'image/webp');
+  const extra=await a('/api/orders',{...payload,requestId:randomUUID(),key:randomBytes(32).toString('hex')},csrf);
+  assert.equal(extra.status,201);const adminAction={action:'cancel',id:extra.data.order.id};
+  assert.equal((await b('/api/admin',adminAction,csrfB)).status,403);
+  assert.equal((await a('/api/admin',adminAction,'wrong')).status,403);
+  assert.equal((await a('/api/admin',null,csrf)).status,400);
+  assert.equal((await a('/api/admin',adminAction,csrf)).status,200);
+  assert.equal((await pool.query('SELECT status FROM orders WHERE id=$1',[adminAction.id])).rows[0].status,'cancelled');
  }finally{await new Promise(r=>server.close(r));await pool.end();}
 });

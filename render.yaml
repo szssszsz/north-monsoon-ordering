@@ -21,7 +21,7 @@ services:
 
 databases:
   - name: north-monsoon-orders
-    databaseName: monsoon_orders
+    databaseName: north_monsoon_orders
     postgresMajorVersion: "17"
     plan: free
     region: singapore

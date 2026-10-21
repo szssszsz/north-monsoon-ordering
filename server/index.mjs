@@ -25,7 +25,7 @@ export async function createApplication(pool,{origin:configuredOrigin,adminPassw
    if(!adminPassword||adminPassword.length<16)return json({error:'管理员口令尚未配置。'},503);
    const id='admin-attempt-'+s.id;const previous=hits.get(id);if(previous&&previous.until>Date.now()&&previous.n>=5)return json({error:'尝试次数较多，请一分钟后重试。'},429);
    if(!allow(id,5))return json({error:'请稍后重试。'},429);
-   if(typeof data.password!=='string'||data.password.length>500||!timingSafeEqual(digest(data.password),digest(adminPassword)))return json({error:'管理员口令不正确。'},403);
+   if(typeof data?.password!=='string'||data.password.length>500||!timingSafeEqual(digest(data.password),digest(adminPassword)))return json({error:'管理员口令不正确。'},403);
    const token=randomBytes(32).toString('hex');await pool.query('INSERT INTO admin_sessions(id,expires) VALUES($1,$2)',[digest(token).toString('hex'),Date.now()+4*3600000]);
    return json({ok:true},200,{'Set-Cookie':`nm_admin=${token}; Path=/api/admin; HttpOnly; SameSite=Strict; Max-Age=14400${u.protocol==='https:'?'; Secure':''}`});
   }
@@ -33,6 +33,13 @@ export async function createApplication(pool,{origin:configuredOrigin,adminPassw
    const token=request.headers.get('cookie')?.match(/(?:^|;\s*)nm_admin=([a-f0-9]{64})(?:;|$)/)?.[1];
    const found=token?await pool.query('SELECT id FROM admin_sessions WHERE id=$1 AND expires>$2',[digest(token).toString('hex'),Date.now()]):null;
    if(!found?.rows.length)return json({error:'请先输入管理员口令。'},403);
+   if(request.method==='POST'){
+    if(!await authorize(request))return json({error:'请刷新页面后重试。'},403);
+    let data;try{data=await request.json()}catch{return json({error:'请求无效。'},400)}
+    if(data?.action!=='cancel'||typeof data.id!=='string'||!/^NM-[A-F0-9]{12}$/.test(data.id))return json({error:'订单参数无效。'},400);
+    const {rows}=await pool.query("UPDATE orders SET status='cancelled' WHERE id=$1 RETURNING id,status",[data.id]);
+    return rows.length?json({order:rows[0]}):json({error:'订单不存在。'},404);
+   }
    if(request.method!=='GET')return json({error:'不支持此操作。'},405);
    const {rows}=await pool.query(`SELECT ${publicColumns} FROM orders ORDER BY created_at DESC LIMIT 500`);return json({orders:rows});
   }

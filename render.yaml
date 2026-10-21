@@ -22,6 +22,7 @@ services:
 databases:
   - name: north-monsoon-orders
     databaseName: monsoon_orders
+    postgresMajorVersion: "17"
     plan: free
     region: singapore
     ipAllowList: []

@@ -11,7 +11,7 @@ import * as sessionRoute from './routes/session.ts';
 const ROOT=resolve(fileURLToPath(new URL('../dist/',import.meta.url)));
 const staticTypes={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.webp':'image/webp','.png':'image/png','.jpg':'image/jpeg','.ico':'image/x-icon'};
 const digest=x=>createHash('sha256').update(x).digest();
-export async function createApplication(pool,{origin:configuredOrigin,adminPassword=process.env.ADMIN_PASSWORD}={}){
+export async function createApplication(pool,{origin:configuredOrigin,adminPassword=process.env.ADMIN_PASSWORD,frontendOrigin='https://north-monsoon-atelier.onrender.com'}={}){
  await migrate(pool);configureDatabase(new Database(pool));
  const hits=new Map();
  const allow=(ip,limit)=>{const now=Date.now(),p=hits.get(ip);if(!p||p.until<now){hits.set(ip,{n:1,until:now+60000});if(hits.size>10000){for(const[k,v]of hits)if(v.until<now)hits.delete(k);if(hits.size>10000)hits.delete(hits.keys().next().value)}return true;}p.n++;return p.n<=limit;};
@@ -54,7 +54,10 @@ export async function createApplication(pool,{origin:configuredOrigin,adminPassw
   try{
    const ip=String(req.headers['x-forwarded-for']||req.socket.remoteAddress||'unknown').split(',').at(-1).trim();
    if(req.method==='POST'&&!allow('post-'+ip,60)){res.writeHead(429,{'Content-Type':'application/json'});res.end(JSON.stringify({error:'请求较多，请稍后重试。'}));return;}
-   const origin=configuredOrigin||(process.env.PUBLIC_ORIGIN||`${req.headers['x-forwarded-proto']==='https'?'https':'http'}://${req.headers.host}`);
+   const serverOrigin=configuredOrigin||(process.env.PUBLIC_ORIGIN||`${req.headers['x-forwarded-proto']==='https'?'https':'http'}://${req.headers.host}`);
+   // The CDN forwards first-party cookies and CSRF headers to this service.
+   // Accept only the exact owned frontend origin, while retaining the legacy host.
+   const origin=req.headers.origin===frontendOrigin?frontendOrigin:serverOrigin;
    let length=0;const chunks=[];for await(const c of req){length+=c.length;if(length>12000){res.writeHead(413,{'Content-Type':'application/json'});res.end(JSON.stringify({error:'内容过长。'}));return;}chunks.push(c);}
    const headers=new Headers();for(const[k,v]of Object.entries(req.headers))if(v!==undefined)headers.set(k,Array.isArray(v)?v.join(', '):v);
    const r=new Request(origin+req.url,{method:req.method,headers,body:chunks.length?Buffer.concat(chunks):undefined});

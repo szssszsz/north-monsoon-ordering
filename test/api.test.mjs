@@ -23,6 +23,7 @@ test('full booking lifecycle, isolation, validation, idempotency and admin acces
   const payload={name:'自动化测试',date,time:'12:00',guests:2,items:['mist','wind','cloud'],note:'测试',requestId:randomUUID(),key:randomBytes(32).toString('hex')};
   assert.equal((await a('/api/orders',payload,'bad')).status,403);
   assert.equal((await a('/api/orders',payload,csrf,'https://example.invalid')).status,403);
+  assert.equal((await a('/api/orders',null,csrf,'https://north-monsoon-atelier.onrender.com')).status,400);
   const created=await a('/api/orders',payload,csrf);assert.equal(created.status,201,JSON.stringify(created));
   const {id}=created.data.order,receipt=created.data.receipt;
   assert.equal((await a('/api/orders',payload,csrf)).data.order.id,id);

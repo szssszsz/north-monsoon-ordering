@@ -4,7 +4,6 @@ import {resolve,extname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {randomBytes,createHash,timingSafeEqual} from 'node:crypto';
 import pg from 'pg';
-import {purgeReviewedValidationOrders} from './validation-cleanup.mjs';
 import {Database,migrate} from './database.mjs';
 import {configureDatabase,json,authorize,publicColumns} from './runtime.ts';
 import * as orderRoute from './routes/orders.ts';
@@ -37,10 +36,6 @@ export async function createApplication(pool,{origin:configuredOrigin,adminPassw
    if(request.method==='POST'){
     if(!await authorize(request))return json({error:'请刷新页面后重试。'},403);
     let data;try{data=await request.json()}catch{return json({error:'请求无效。'},400)}
-    if(data?.action==='purge-cancelled-validation-orders'){
-     try{const deleted=await purgeReviewedValidationOrders(pool,data.expected);return json({deleted,count:deleted.length});}
-     catch{return json({error:'验证记录已发生变化，未执行清理。'},409);}
-    }
     if(data?.action!=='cancel'||typeof data.id!=='string'||!/^NM-[A-F0-9]{12}$/.test(data.id))return json({error:'订单参数无效。'},400);
     const {rows}=await pool.query("UPDATE orders SET status='cancelled' WHERE id=$1 RETURNING id,status",[data.id]);
     return rows.length?json({order:rows[0]}):json({error:'订单不存在。'},404);

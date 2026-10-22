@@ -10,6 +10,7 @@ export default function Atmosphere(){
   const el:HTMLCanvasElement=canvasNode,layer:HTMLDivElement=stageNode;
   const media=matchMedia('(prefers-reduced-motion: reduce)');
   const gl=el.getContext('webgl',{alpha:true,antialias:false,depth:false,premultipliedAlpha:false,powerPreference:'low-power'});
+  const born=performance.now();
   let width=innerWidth,height=innerHeight,dpr=1,frame=0,last=0,lastPaint=0,elapsed=0,active=true,lost=false,intro=true;
   let pointerX=0,pointerY=0,smoothX=0,smoothY=0,targetScene=0,scene=0;
   const placement=[0,-.20,.72,1],target=[0,-.20,.72,1];
@@ -58,7 +59,7 @@ export default function Atmosphere(){
   function draw(now:number){
    frame=0;if(document.hidden||!active||lost)return;
    if(fallback&&!media.matches&&now-lastPaint<32){frame=requestAnimationFrame(draw);return}lastPaint=now;
-   const dt=Math.min((now-last)/1000||.016,.06);last=now;if(!media.matches)elapsed+=dt;
+   const dt=Math.min((now-last)/1000||.016,.06);last=now;if(!media.matches)elapsed=intro?(now-born)/1000:elapsed+dt;
    smoothX+=(pointerX-smoothX)*.05;smoothY+=(pointerY-smoothY)*.05;if(intro&&!media.matches)targetScene=Math.max(0,Math.min(3,(elapsed-1.2)/1.15));scene=media.matches?targetScene:scene+(targetScene-scene)*.075;
    for(let i=0;i<4;i++)placement[i]+=(target[i]-placement[i])*.075;
    if(media.matches)for(let i=0;i<4;i++)placement[i]=target[i];

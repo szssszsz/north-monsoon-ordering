@@ -1,0 +1,87 @@
+name: Public entry verification
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/public-entry-check.yml]
+permissions: {}
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Verify public entry and reservation guards without creating orders
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.request, urllib.error, http.cookiejar, json, time
+          base = 'https://north-monsoon-atelier.onrender.com'
+          started = time.monotonic()
+          with urllib.request.urlopen(base+'/', timeout=30) as response:
+              html = response.read().decode()
+              assert response.status == 200
+              assert '/assets/' in html and '<div id="root"></div>' in html
+              assert 'APPLICATION LOADING' not in html.upper()
+          print('FRONTEND_HTTP_200=True; document_ms='+str(round((time.monotonic()-started)*1000)))
+          jar = http.cookiejar.CookieJar()
+          client = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+          csrf = None
+          deadline = time.monotonic()+130
+          while time.monotonic() < deadline:
+              try:
+                  request = urllib.request.Request(base+'/api/session', headers={'Cache-Control':'no-cache'})
+                  with client.open(request, timeout=20) as response:
+                      if response.headers.get_content_type() == 'application/json':
+                          csrf = json.load(response).get('csrf')
+                          if csrf:
+                              break
+              except (urllib.error.URLError, TimeoutError, ValueError):
+                  pass
+              time.sleep(3)
+          assert csrf, 'Reservation session did not become ready'
+          for origin, expected in [(base,400),('https://untrusted.example',403)]:
+              request = urllib.request.Request(base+'/api/orders', data=b'null', headers={
+                  'Origin':origin, 'Content-Type':'application/json', 'X-CSRF-Token':csrf})
+              try:
+                  with client.open(request, timeout=25) as response:
+                      status = response.status
+              except urllib.error.HTTPError as error:
+                  status = error.code
+              assert status == expected, 'Unexpected reservation guard status: '+str(status)
+              print('GUARD_STATUS='+str(status))
+          with client.open(base+'/api/orders', timeout=25) as response:
+              assert json.load(response)['orders'] == []
+          print('SESSION_READY=True; FIRST_PARTY_PROXY_VALID=True; NO_ORDERS_CREATED=True')
+          PY
+      - name: Generate and independently decode the public entry QR
+        shell: bash
+        run: |
+          python3 -m pip install --disable-pip-version-check --quiet --target "$RUNNER_TEMP/qrdeps" 'qrcode[pil]' zxing-cpp
+          PYTHONPATH="$RUNNER_TEMP/qrdeps" python3 - <<'PY'
+          import qrcode, zxingcpp, base64
+          from PIL import Image
+          url = 'https://north-monsoon-atelier.onrender.com/'
+          qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_H, box_size=16, border=4)
+          qr.add_data(url)
+          qr.make(fit=True)
+          image = qr.make_image(fill_color='#09131e', back_color='white').convert('RGB')
+          for size in (240,360,720):
+              decoded = zxingcpp.read_barcode(image.resize((size,size), Image.Resampling.NEAREST))
+              assert decoded and decoded.text == url
+          matrix = qr.get_matrix()
+          n = len(matrix)
+          paths = []
+          for y, row in enumerate(matrix):
+              x = 0
+              while x < n:
+                  if not row[x]:
+                      x += 1
+                      continue
+                  start = x
+                  while x < n and row[x]:
+                      x += 1
+                  length = x-start
+                  paths.append('M'+str(start)+' '+str(y)+'h'+str(length)+'v1h-'+str(length)+'z')
+          svg = '<svg xmlns="http://www.w3.org/2000/svg" width="720" height="720" viewBox="0 0 '+str(n)+' '+str(n)+'" shape-rendering="crispEdges" role="img" aria-label="North Monsoon ordering QR"><rect width="'+str(n)+'" height="'+str(n)+'" fill="#fff"/><path fill="#09131e" d="'+' '.join(paths)+'"/></svg>'
+          print('QR_VERIFIED_240_360_720=True')
+          print('QR_SVG_BASE64='+base64.b64encode(svg.encode()).decode())
+          PY

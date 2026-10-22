@@ -46,7 +46,7 @@ export default function Atmosphere(){
     top=Math.max(0,seal.top);bottom=Math.min(height,seal.bottom);left=Math.max(0,seal.left);right=Math.min(width,seal.right);
     placement[0]=(seal.left+seal.width*.5)/width*2-1;placement[1]=1-(seal.top+seal.height*.5)/height*2;placement[2]=Math.min(seal.width,seal.height)*.64*4.6/(height*2.7);placement[3]=.82;
    }
-   layer.dataset.mode=mode;el.dataset.scene=scene.toFixed(5);el.dataset.scrollCoordinate=travel.toFixed(5);el.style.opacity=mode==='seal'?'1':'.46';
+   layer.dataset.mode=mode;el.dataset.scene=scene.toFixed(5);el.dataset.scrollCoordinate=travel.toFixed(5);el.style.opacity=mode==='seal'?'1':mode==='hero'?'.30':'.36';
    layer.style.clipPath=`inset(${top}px ${Math.max(0,width-right)}px ${Math.max(0,height-bottom)}px ${left}px)`;
    document.documentElement.style.setProperty('--landscape-shift',`${Math.min(scrollY,950)*.12}px`);
    const tint=[0,0,0];palette(Math.floor(scene),.35,tint);layer.style.setProperty('--particle-tint',`rgba(${tint.map(x=>Math.round(x*255)).join(',')},.055)`);

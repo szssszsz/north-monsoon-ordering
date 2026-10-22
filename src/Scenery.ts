@@ -4,9 +4,12 @@ type V=[number,number,number];
 type RGB=[number,number,number];
 type Material={color:RGB;metal?:number;alpha?:number;snow?:boolean};
 type Face={p:V[];depth:number;color:string};
+type WorldFace={p:V[];color:string};
 const PI=Math.PI,TAU=PI*2;
-const gold:Material={color:[182,139,75],metal:1},silver:Material={color:[143,177,193],metal:.8};
+const gold:Material={color:[182,139,75],metal:1};
 const clamp=(n:number,a=0,b=1)=>Math.max(a,Math.min(b,n));
+const cloudSurfaces=new WeakMap<CanvasRenderingContext2D,HTMLCanvasElement|OffscreenCanvas>();
+const geometryCaches=new WeakMap<CanvasRenderingContext2D,Map<string,WorldFace[]>>();
 
 /** Projected surfaces, atmospheric volumes and their highlights share the particle camera.
  * There is deliberately no clock: the complete composition is a pure scroll sample. */
@@ -18,13 +21,14 @@ export function drawScenery(c:CanvasRenderingContext2D,width:number,height:numbe
  const rotate=(v:V):V=>{let [x,y,z]=v;const xx=cx*x+sx*z;z=-sx*x+cx*z;x=xx;const yy=cy*y+sy*z;z=-sy*y+cy*z;y=yy;return [(cz*x+sz*y)*scale,(-sz*x+cz*y)*scale,z*scale]};
  const project=(v:V):V=>{const [x,y,z]=rotate(v),d=4.6-z;return [(x*2.7/(width/height)/d+placement[0]+1)*width*.5,(1-y*2.7/d-placement[1])*height*.5,z]};
  const index=Math.floor(scene),mix=morphWeight(scene);
- c.save();c.globalAlpha=mode==='hero'?.78:1;
+ let geometryCache=geometryCaches.get(c);if(!geometryCache){geometryCache=new Map();geometryCaches.set(c,geometryCache);}
+ c.save();c.globalAlpha=mode==='hero'?.12:1;
  render(index,1-mix);if(mix>0)render(Math.min(5,index+1),mix);
  c.restore();
 
  function render(chapter:number,opacity:number){
   if(opacity<.001)return;c.save();c.globalAlpha*=opacity;
-  const faces:Face[]=[];
+  const worldFaces:WorldFace[]=[];let meshNumber=0;
   function polygon(p:V[],material:Material){
    const u=p[1].map((v,i)=>v-p[0][i]),v=p[2].map((v,i)=>v-p[0][i]);
    const n:V=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]],len=Math.hypot(...n)||1;
@@ -34,16 +38,18 @@ export function drawScenery(c:CanvasRenderingContext2D,width:number,height:numbe
    let base=material.color;
    if(material.snow){const snow=clamp((centre[1]-.02)*2.7+light*.35);base=base.map((v,i)=>v*(1-snow)+[198,222,230][i]*snow) as RGB;}
    const rgb=base.map((v,i)=>Math.round(clamp(v*(.32+light*.66)+spec*[228,225,212][i],0,255)));
-   const projected=p.map(project);
-   faces.push({p:projected,depth:projected.reduce((s,v)=>s+v[2],0)/p.length,color:`rgba(${rgb.join(',')},${material.alpha??1})`});
+   worldFaces.push({p,color:`rgba(${rgb.join(',')},${material.alpha??1})`});
   }
-  function surface(fn:(u:number,v:number)=>V,nu:number,nv:number,mat:Material,facets=false){
+  function surface(fn:(u:number,v:number)=>V,nu:number,nv:number,mat:Material,facets=false,dynamic=false){
+   const key=`${chapter}:surface:${meshNumber++}:${nu}:${nv}`,cached=dynamic?undefined:geometryCache!.get(key);if(cached){worldFaces.push(...cached);return;}const start=worldFaces.length;
    const grid:V[][]=[];for(let i=0;i<=nu;i++){grid[i]=[];for(let j=0;j<=nv;j++)grid[i][j]=fn(i/nu,j/nv);}
    for(let i=0;i<nu;i++)for(let j=0;j<nv;j++){const a=grid[i][j],b=grid[i+1][j],d=grid[i][j+1],e=grid[i+1][j+1];if(facets){polygon([a,b,e],mat);polygon([a,e,d],mat)}else polygon([a,b,e,d],mat);}
+   if(!dynamic)geometryCache!.set(key,worldFaces.slice(start));
   }
   function flush(){
+   const projected=new Map<V,V>(),faces:Face[]=worldFaces.map(f=>{const p=f.p.map(v=>{let q=projected.get(v);if(!q){q=project(v);projected.set(v,q)}return q});return {p,depth:p.reduce((s,v)=>s+v[2],0)/p.length,color:f.color}});
    faces.sort((a,b)=>a.depth-b.depth);
-   for(const f of faces){c.beginPath();f.p.forEach((v,i)=>i?c.lineTo(v[0],v[1]):c.moveTo(v[0],v[1]));c.closePath();c.fillStyle=f.color;c.strokeStyle=f.color;c.lineWidth=.4;c.fill();c.stroke();}faces.length=0;
+   for(const f of faces){c.beginPath();f.p.forEach((v,i)=>i?c.lineTo(v[0],v[1]):c.moveTo(v[0],v[1]));c.closePath();c.fillStyle=f.color;c.strokeStyle=f.color;c.lineWidth=.4;c.fill();c.stroke();}worldFaces.length=0;
   }
   function curve(points:V[],color:string,lineWidth=1){
    c.beginPath();points.map(project).forEach((p,i)=>i?c.lineTo(p[0],p[1]):c.moveTo(p[0],p[1]));c.strokeStyle=color;c.lineWidth=lineWidth;c.stroke();
@@ -60,14 +66,16 @@ export function drawScenery(c:CanvasRenderingContext2D,width:number,height:numbe
   function ribbon(high=false){
    surface((u,v)=>{const x=u*4.2-2.1,s=v*2-1;
     return high?[x,1.02-x*.11+Math.sin(x*1.8+travel*.48+s*3)*.18+s*.19,s*.96+Math.cos(x*1.4+travel*.72)*.22]:[x,.20+Math.sin(x*1.65+travel*.22)*.4+s*.25*Math.cos(x*.9+travel*.4),Math.cos(x*1.15+travel*.14)*.68+s*.26*Math.sin(x*.9+travel*.4)];
-   },140,20,{color:high?[77,146,166]:[55,154,144],metal:.78,alpha:high?.16:.96});
+   },140,20,{color:high?[77,146,166]:[55,154,144],metal:.78,alpha:high?.16:.96},false,true);
   }
   function lathe(x:number,y:number,z:number,profile:[number,number][],mat:Material,rz=1,transform?:(v:V)=>V){
+   const key=`${chapter}:lathe:${meshNumber++}`,cached=transform?undefined:geometryCache!.get(key);if(cached){worldFaces.push(...cached);return;}const start=worldFaces.length;
    for(let j=0;j<profile.length-1;j++)for(let i=0;i<80;i++){
     const a=i/80*TAU,b=(i+1)/80*TAU,[r0,y0]=profile[j],[r1,y1]=profile[j+1];
     const p:V[]=[[Math.cos(a)*r0,y0,Math.sin(a)*r0*rz],[Math.cos(b)*r0,y0,Math.sin(b)*r0*rz],[Math.cos(b)*r1,y1,Math.sin(b)*r1*rz],[Math.cos(a)*r1,y1,Math.sin(a)*r1*rz]].map(v=>{const t=transform?transform(v as V):v;return [t[0]+x,t[1]+y,t[2]+z] as V});
     polygon(p,mat);
    }
+   if(!transform)geometryCache!.set(key,worldFaces.slice(start));
   }
   function plate(x:number,y:number,z:number,r:number){
    lathe(x,y,z,[[.01,0],[r*.7,0],[r*.82,.025],[r,.075],[r,.095],[r*.82,.065],[r*.66,.03],[.01,.03]],{color:[143,171,180],metal:.68},.78);
@@ -87,7 +95,21 @@ export function drawScenery(c:CanvasRenderingContext2D,width:number,height:numbe
     const x=(i/12-.5)*3.6,y=base+Math.sin(i*1.7)*.12,z=Math.sin(i*2.1)*.48;
     for(let j=0;j<4;j++){const a=j*2.4;list.push({p:[x+Math.cos(a)*.15,y+Math.sin(a)*.11,z+j*.12],r:(.34+(Math.sin(i*4+j*1.7)+1)*.075)*(low?.68:1),t:i<5?[166,191,210]:i<9?[196,191,208]:[218,205,190]});}
    }
-   list.sort((a,b)=>rotate(a.p)[2]-rotate(b.p)[2]);list.forEach(v=>cloud(...v.p,v.r,v.t));
+   list.sort((a,b)=>rotate(a.p)[2]-rotate(b.p)[2]);
+   const volumes=list.map(v=>{const p=project(v.p);return {x:p[0],y:p[1],r:v.r*scale*height*1.35/(4.6-p[2])}});
+   const left=Math.min(...volumes.map(p=>p.x-p.r)),right=Math.max(...volumes.map(p=>p.x+p.r)),top=Math.min(...volumes.map(p=>p.y-p.r)),bottom=Math.max(...volumes.map(p=>p.y+p.r));
+   let sheet=cloudSurfaces.get(c);
+   if(!sheet){if(typeof OffscreenCanvas!=='undefined')sheet=new OffscreenCanvas(width,height);else if(c.canvas.ownerDocument)sheet=c.canvas.ownerDocument.createElement('canvas');if(sheet)cloudSurfaces.set(c,sheet);}
+   const fog=sheet?.getContext('2d') as CanvasRenderingContext2D|OffscreenCanvasRenderingContext2D|null;
+   if(sheet&&fog){
+    if(sheet.width!==width)sheet.width=width;if(sheet.height!==height)sheet.height=height;fog.clearRect(0,0,width,height);
+    fog.save();fog.beginPath();for(const p of volumes){fog.moveTo(p.x+p.r,p.y);fog.arc(p.x,p.y,p.r,0,TAU)}fog.clip();
+    const mist=fog.createLinearGradient(0,top,0,bottom);mist.addColorStop(0,'#dce5e900');mist.addColorStop(.24,'#c3d1dc9e');mist.addColorStop(.44,'#a9becbd1');mist.addColorStop(.72,'#687f9770');mist.addColorStop(1,'#32496000');
+    fog.fillStyle=mist;fog.fillRect(left,top,right-left,bottom-top);
+    const light=fog.createLinearGradient(left,0,right,0);light.addColorStop(0,'#b4e6ef12');light.addColorStop(.5,'#d1bce61d');light.addColorStop(1,'#f4d6ad40');fog.fillStyle=light;fog.fillRect(left,top,right-left,bottom-top);fog.restore();
+    c.save();c.filter=`blur(${Math.max(5,height*.012)}px)`;c.drawImage(sheet,0,0);c.restore();
+    c.save();c.globalAlpha*=.20;list.forEach(v=>cloud(...v.p,v.r,v.t));c.restore();
+   }else list.forEach(v=>cloud(...v.p,v.r,v.t));
   }
   function cutlery(x:number,y:number,z:number){
    for(const side of [-1,1])lathe(x+side*.29,y,z,[[.009,-.14],[.012,.14]],gold);
@@ -100,7 +122,7 @@ export function drawScenery(c:CanvasRenderingContext2D,width:number,height:numbe
    clouds(true);
   }else if(chapter===1){
    halo([-.8,.9,-1],1.2,'219,185,124,',.25);
-   surface((u,v)=>{const x=u*4.3-2.15,z=v*2.5-1.25;return [x,-.76+.12*Math.sin(x*3+z*4+travel*.288),z]},110,48,{color:[153,119,75],metal:.14});ribbon();flush();
+   surface((u,v)=>{const x=u*4.3-2.15,z=v*2.5-1.25;return [x,-.76+.12*Math.sin(x*3+z*4+travel*.288),z]},width<640?60:90,width<640?28:40,{color:[153,119,75],metal:.14},false,true);ribbon();flush();
    for(const s of [-1,1])curve(Array.from({length:151},(_,j)=>{const x=j/150*4.2-2.1;return [x,.2+Math.sin(x*1.65+travel*.22)*.4+s*.25*Math.cos(x*.9+travel*.4),Math.cos(x*1.15+travel*.14)*.68+s*.26*Math.sin(x*.9+travel*.4)] as V}),'#edd8a9b3',1.1);
   }else if(chapter===2){
    halo([.95,.65,-1.3],1.3,'235,173,147,',.42);mountains(true);flush();
@@ -120,11 +142,14 @@ export function drawScenery(c:CanvasRenderingContext2D,width:number,height:numbe
    halo([0,.4,-1],1.7,'231,192,128,',.28);
    lathe(0,-.72,0,[[.01,0],[1.94,0],[1.96,.06],[1.94,.11],[.01,.11]],{color:[33,59,68],metal:.45},.55);
    plate(0,-.17,0,1.19);
+   lathe(0,-.61,0,[[.30,0],[.31,.035],[.15,.10],[.085,.35],[.21,.42]],gold,.8);
    for(const x of [-1.5,1.5])glass(x,-.56,0,1);
    const open=clamp((travel-4)/.52),transform=(v:V):V=>[v[0],v[1]*Math.cos(open*.7)-v[2]*Math.sin(open*.7)+open*.52,v[1]*Math.sin(open*.7)+v[2]*Math.cos(open*.7)-open*.2];
    const profile:[number,number][]=[];for(let j=0;j<=56;j++){const a=j/56*PI*.5;profile.push([Math.sin(a)*1.07,.02+Math.cos(a)*.81]);}
    lathe(0,0,0,profile,gold,.62,transform);
    lathe(0,0,0,[[.01,.84],[.07,.86],[.10,.91],[.07,.96],[.01,.97]],gold,1,transform);flush();
+   const signature=project(transform([0,.39,.55])),edge=project(transform([.3,.39,.55]));
+   c.save();c.translate(signature[0],signature[1]);c.rotate(Math.atan2(edge[1]-signature[1],edge[0]-signature[0]));c.fillStyle='#f3e3ba8c';c.font=`${Math.max(8,height*scale*.018)}px Georgia,serif`;c.textAlign='center';c.fillText('N O R T H   M O N S O O N',0,0);c.restore();
    ring(0,-.075,0,1.19,'#e3ce9ccc',.78);
    if(open>.05){c.save();c.globalAlpha*=open;for(let i=0;i<8;i++)cloud(Math.sin(i*2.4)*.47,-.12+Math.cos(i)*.08,Math.cos(i*2.4)*.25,.23,[218,220,212]);c.restore();}
   }else{

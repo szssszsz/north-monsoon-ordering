@@ -85,3 +85,29 @@ jobs:
           print('QR_VERIFIED_240_360_720=True')
           print('QR_SVG_BASE64='+base64.b64encode(svg.encode()).decode())
           PY
+      - name: Verify the published QR image
+        shell: bash
+        run: |
+          PYTHONPATH="$RUNNER_TEMP/qrdeps" python3 - <<'PY'
+          import urllib.request, urllib.error, time, io
+          from PIL import Image
+          import zxingcpp
+          url='https://north-monsoon-atelier.onrender.com/ordering-qr.png'
+          deadline=time.monotonic()+160
+          image=None
+          while time.monotonic()<deadline:
+              try:
+                  with urllib.request.urlopen(url,timeout=20) as response:
+                      data=response.read()
+                  if data.startswith(bytes([137,80,78,71,13,10,26,10])):
+                      image=Image.open(io.BytesIO(data)).convert('RGB')
+                      break
+              except (urllib.error.URLError, TimeoutError):
+                  pass
+              time.sleep(3)
+          assert image is not None, 'Published QR image not ready'
+          for size in (240,360,720):
+              decoded=zxingcpp.read_barcode(image.resize((size,size),Image.Resampling.NEAREST))
+              assert decoded and decoded.text=='https://north-monsoon-atelier.onrender.com/'
+          print('PUBLISHED_QR_HTTP_200_AND_DECODE=True')
+          PY

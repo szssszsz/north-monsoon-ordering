@@ -1,12 +1,14 @@
 import {useEffect,useRef} from 'react';
 import {shape,palette,morphWeight,vertexSource,fragmentSource} from './particleModel';
+import {drawScenery} from './Scenery';
 
 /** One on-demand paint per scroll/layout change. Idle and pointer movement never advance the scene. */
 export default function Atmosphere(){
- const canvas=useRef<HTMLCanvasElement>(null),stage=useRef<HTMLDivElement>(null);
+ const canvas=useRef<HTMLCanvasElement>(null),scenery=useRef<HTMLCanvasElement>(null),stage=useRef<HTMLDivElement>(null);
  useEffect(()=>{
   const canvasNode=canvas.current,stageNode=stage.current;if(!canvasNode||!stageNode)return;
   const el:HTMLCanvasElement=canvasNode,layer:HTMLDivElement=stageNode;
+  const sceneryNode=scenery.current,sceneryContext=sceneryNode?.getContext('2d');
   const gl=el.getContext('webgl',{alpha:true,antialias:false,depth:false,premultipliedAlpha:false,powerPreference:'low-power'});
   let width=innerWidth,height=innerHeight,dpr=1,frame=0,active=false,lost=false,scene=0,travel=0,paintCount=0,lastKey='';
   const placement=[0,-.20,.72,1];
@@ -44,17 +46,18 @@ export default function Atmosphere(){
     top=Math.max(0,seal.top);bottom=Math.min(height,seal.bottom);left=Math.max(0,seal.left);right=Math.min(width,seal.right);
     placement[0]=(seal.left+seal.width*.5)/width*2-1;placement[1]=1-(seal.top+seal.height*.5)/height*2;placement[2]=Math.min(seal.width,seal.height)*.64*4.6/(height*2.7);placement[3]=.82;
    }
-   layer.dataset.mode=mode;el.dataset.scene=scene.toFixed(5);el.dataset.scrollCoordinate=travel.toFixed(5);
+   layer.dataset.mode=mode;el.dataset.scene=scene.toFixed(5);el.dataset.scrollCoordinate=travel.toFixed(5);el.style.opacity=mode==='seal'?'1':'.46';
    layer.style.clipPath=`inset(${top}px ${Math.max(0,width-right)}px ${Math.max(0,height-bottom)}px ${left}px)`;
    document.documentElement.style.setProperty('--landscape-shift',`${Math.min(scrollY,950)*.12}px`);
    const tint=[0,0,0];palette(Math.floor(scene),.35,tint);layer.style.setProperty('--particle-tint',`rgba(${tint.map(x=>Math.round(x*255)).join(',')},.055)`);
    const key=[mode,width,height,dpr,scene,travel,...placement].join('|');
    if(active&&!document.hidden&&!lost&&(force||key!==lastKey)){lastKey=key;if(!frame)frame=requestAnimationFrame(draw)}
   };
-  const resize=()=>{width=innerWidth;height=innerHeight;dpr=Math.min(devicePixelRatio||1,innerWidth<640?1.4:1.7);el.width=Math.round(width*dpr);el.height=Math.round(height*dpr);gl?.viewport(0,0,el.width,el.height);fallback?.setTransform(dpr,0,0,dpr,0,0);updateLayout(true)};
+  const resize=()=>{width=innerWidth;height=innerHeight;dpr=Math.min(devicePixelRatio||1,innerWidth<640?1.4:1.7);el.width=Math.round(width*dpr);el.height=Math.round(height*dpr);if(sceneryNode){sceneryNode.width=el.width;sceneryNode.height=el.height;sceneryContext?.setTransform(dpr,0,0,dpr,0,0)}gl?.viewport(0,0,el.width,el.height);fallback?.setTransform(dpr,0,0,dpr,0,0);updateLayout(true)};
   const p=[0,0,0],q=[0,0,0],ca=[0,0,0],cb=[0,0,0];
   function draw(){
    frame=0;if(document.hidden||!active||lost)return;
+   if(sceneryContext)drawScenery(sceneryContext,width,height,scene,travel,placement,layer.dataset.mode||'quiet');
    if(gl&&program){
     gl.clear(gl.COLOR_BUFFER_BIT);gl.useProgram(program);gl.uniform2f(uniforms.uResolution,width,height);gl.uniform4f(uniforms.uPlacement,placement[0],placement[1],placement[2],placement[3]);
     gl.uniform1f(uniforms.uScene,scene);gl.uniform1f(uniforms.uScroll,travel);gl.uniform1f(uniforms.uDpr,dpr);gl.drawArrays(gl.POINTS,0,count);
@@ -89,5 +92,5 @@ export default function Atmosphere(){
   resize();window.addEventListener('scroll',onScroll,{passive:true});window.addEventListener('resize',resize);document.addEventListener('visibilitychange',onVisible);el.addEventListener('webglcontextlost',lostContext);el.addEventListener('webglcontextrestored',restored);
   return()=>{cancelAnimationFrame(frame);window.removeEventListener('scroll',onScroll);window.removeEventListener('resize',resize);document.removeEventListener('visibilitychange',onVisible);el.removeEventListener('webglcontextlost',lostContext);el.removeEventListener('webglcontextrestored',restored);if(gl){gl.deleteBuffer(buffer);gl.deleteProgram(program)}document.documentElement.style.removeProperty('--landscape-shift')};
  },[]);
- return <div ref={stage} className="particle-stage monsoon-experience" data-mode="quiet" aria-hidden="true"><canvas ref={canvas} className="particle-canvas"/></div>;
+ return <div ref={stage} className="particle-stage monsoon-experience" data-mode="quiet" aria-hidden="true"><canvas ref={scenery} className="scenery-canvas"/><canvas ref={canvas} className="particle-canvas"/></div>;
 }

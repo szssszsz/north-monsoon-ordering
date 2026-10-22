@@ -17,7 +17,7 @@ void main(){
  float a=aSeed.x*PI*2.0;
  float strip=aSeed.y*2.0-1.0;
  float flow=a+uTime*.09;
- // A folded ribbon occupies genuine XYZ space; its back folds occlude in perspective.
+ // A folded ribbon occupies genuine XYZ space; its folds separate through depth and perspective.
  float radius=1.25+.19*cos(3.0*flow)+strip*.20;
  vec3 ribbon=vec3(cos(a)*radius, .40*sin(2.0*flow)+strip*.28, sin(a)*radius);
  ribbon.y+=.065*sin(a*9.0+strip*6.0-uTime*.6);
@@ -64,7 +64,7 @@ export default function Atmosphere(){
   const el=canvas.current;if(!el)return;
   const media=matchMedia('(prefers-reduced-motion: reduce)');
   const gl=el.getContext('webgl',{alpha:true,antialias:false,depth:false,premultipliedAlpha:false,powerPreference:'low-power'});
-  let width=0,height=0,dpr=1,frame=0,last=0,elapsed=0,inView=true,lost=false;
+  let width=0,height=0,dpr=1,frame=0,last=0,lastPaint=0,elapsed=0,inView=true,lost=false;
   let pointerX=0,pointerY=0,smoothX=0,smoothY=0,progress=0,smoothProgress=0;
   let program:WebGLProgram|null=null,buffer:WebGLBuffer|null=null;
   let locations:Record<string,WebGLUniformLocation|null>={};
@@ -85,18 +85,48 @@ export default function Atmosphere(){
    gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE);gl.clearColor(0,0,0,0);
    el.dataset.renderer='webgl';el.dataset.particles=String(count);
   };
-  try{if(gl)initialise();else{fallback=el.getContext('2d');el.dataset.renderer='perspective-fallback';}}catch(e){el.dataset.renderer='unavailable';console.warn('Particle renderer could not initialise',e);}
+  try{if(gl)initialise();else{fallback=el.getContext('2d');el.dataset.renderer='perspective-fallback';el.dataset.particles=String(innerWidth<640?4200:8400);}}catch(e){el.dataset.renderer='unavailable';console.warn('Particle renderer could not initialise',e);}
   const updateScroll=()=>{const hero=el.closest('.hero');if(!hero)return;const top=hero.getBoundingClientRect().top;progress=Math.max(0,Math.min(1,-top/height));document.documentElement.style.setProperty('--landscape-shift',`${Math.min(window.scrollY,950)*.12}px`);};
   const resize=()=>{const bounds=el.getBoundingClientRect();width=Math.max(1,bounds.width);height=Math.max(1,bounds.height);dpr=Math.min(devicePixelRatio||1,innerWidth<640?1.5:1.8);el.width=Math.round(width*dpr);el.height=Math.round(height*dpr);gl?.viewport(0,0,el.width,el.height);fallback?.setTransform(dpr,0,0,dpr,0,0);updateScroll();};
   const pointer=(e:PointerEvent)=>{const b=el.getBoundingClientRect();pointerX=Math.max(-1,Math.min(1,(e.clientX-b.left)/width*2-1));pointerY=Math.max(-1,Math.min(1,(e.clientY-b.top)/height*2-1));};
   const leave=()=>{pointerX=0;pointerY=0};
   const draw=(now:number)=>{
-   frame=0;if(document.hidden||!inView||lost)return;
+   frame=0;if(document.hidden||!inView||lost)return;if(fallback&&!media.matches&&now-lastPaint<32){frame=requestAnimationFrame(draw);return;}lastPaint=now;
    const dt=Math.min((now-last)/1000||.016,.05);last=now;if(!media.matches)elapsed+=dt;
    smoothX+=(pointerX-smoothX)*.045;smoothY+=(pointerY-smoothY)*.045;smoothProgress+=(progress-smoothProgress)*.065;
    const reveal=media.matches?1:1-Math.pow(1-Math.min(1,elapsed/2.7),3);
-   if(gl&&program){gl.clear(gl.COLOR_BUFFER_BIT);gl.useProgram(program);gl.uniform2f(locations.uResolution,width,height);gl.uniform2f(locations.uPointer,media.matches?0:smoothX,media.matches?0:smoothY);gl.uniform1f(locations.uTime,elapsed);gl.uniform1f(locations.uScroll,media.matches?0:smoothProgress);gl.uniform1f(locations.uReveal,reveal);gl.uniform1f(locations.uDpr,dpr);gl.drawArrays(gl.POINTS,0,count);el.dataset.state=gl.getError()===gl.NO_ERROR?'ready':'error';}
-   else if(fallback){const c=fallback;c.clearRect(0,0,width,height);const a=elapsed*.11+smoothX*.28+smoothProgress*2.7,ca=Math.cos(a),sa=Math.sin(a);for(let i=0;i<1200;i++){const u=seeds[i*4]*Math.PI*2,v=seeds[i*4+1]*2-1,r=1.25+.19*Math.cos(u*3+elapsed*.27)+v*.2;let x=Math.cos(u)*r,z=Math.sin(u)*r;const y=.40*Math.sin(u*2+elapsed*.18)+v*.28;const xx=x*ca-z*sa;z=x*sa+z*ca;x=xx;const depth=4.3-z,scale=Math.min(width*.47,height*.8)/depth;const cx=width<640?width*.62:width*.73;c.fillStyle=`rgba(226,184,109,${.18+(z+1.6)*.15})`;c.beginPath();c.arc(cx+x*scale,height*.47-y*scale,Math.max(.5,2.7/depth),0,Math.PI*2);c.fill();}el.dataset.state='ready';}
+   if(gl&&program){gl.clear(gl.COLOR_BUFFER_BIT);gl.useProgram(program);gl.uniform2f(locations.uResolution,width,height);gl.uniform2f(locations.uPointer,media.matches?0:smoothX,media.matches?0:smoothY);gl.uniform1f(locations.uTime,elapsed);gl.uniform1f(locations.uScroll,media.matches?0:smoothProgress);gl.uniform1f(locations.uReveal,reveal);gl.uniform1f(locations.uDpr,dpr);gl.drawArrays(gl.POINTS,0,count);if(el.dataset.state!=='ready')el.dataset.state=gl.getError()===gl.NO_ERROR?'ready':'error';}
+   else if(fallback){
+    const c=fallback;c.clearRect(0,0,width,height);
+    const amount=innerWidth<640?4200:8400,turn=elapsed*.11+smoothProgress*2.7+smoothX*.28;
+    const cx=Math.cos(turn),sx=Math.sin(turn),tilt=-.30+smoothY*.15+smoothProgress*.48,cy=Math.cos(tilt),sy=Math.sin(tilt),roll=-.27+Math.sin(elapsed*.12)*.07,cz=Math.cos(roll),sz=Math.sin(roll);
+    const aspect=width/height,focal=aspect<.85?2.1:2.65,center=aspect<.85?.24:.46;
+    const t=Math.max(0,Math.min(1,(smoothProgress-.02)/.78)),morph=t*t*(3-2*t)*.72;
+    const buckets:{x:number;y:number;r:number}[][]=Array.from({length:12},()=>[]);
+    for(let i=0;i<amount;i++){
+     const u=seeds[i*4],v=seeds[i*4+1],seed=seeds[i*4+2],a=u*Math.PI*2,strip=v*2-1,flow=a+elapsed*.09,r=1.25+.19*Math.cos(3*flow)+strip*.20;
+     let x=Math.cos(a)*r+.07*Math.sin(strip*9+a*3+elapsed*.25),y=.40*Math.sin(2*flow)+strip*.28+.065*Math.sin(a*9+strip*6-elapsed*.6),z=Math.sin(a)*r;
+     const lat=Math.acos(1-2*v),gx=Math.sin(lat)*Math.cos(a)*1.23,gy=Math.cos(lat)*1.23,gz=Math.sin(lat)*Math.sin(a)*1.23;
+     x=x*(1-morph)+gx*morph;y=y*(1-morph)+gy*morph;z=z*(1-morph)+gz*morph;
+     if(seeds[i*4+3]>.91){const shell=1.18+seed*.5;x=gx*shell;y=gy*shell+.14*Math.sin(elapsed*.25+a*3);z=gz*shell;}
+     x=Math.sin(seed*73)*3.5*(1-reveal)+x*reveal;y=Math.cos(v*89)*2.5*(1-reveal)+y*reveal;z=Math.sin(u*91)*3.2*(1-reveal)+z*reveal;
+     const xx=cx*x+sx*z;z=-sx*x+cx*z;x=xx;
+     const yy=cy*y+sy*z;z=-sy*y+cy*z;y=yy;
+     const xr=cz*x+sz*y;y=-sz*x+cz*y;x=xr;
+     const depth=4.3-z,screenX=(x*focal/aspect/depth+center+1)*width*.5,screenY=(1-y*focal/depth-.07)*height*.5;
+     if(depth<.4||screenX< -10||screenX>width+10||screenY< -10||screenY>height+10)continue;
+     const bucket=Math.max(0,Math.min(11,Math.floor((z+2)*3)));
+     buckets[bucket].push({x:screenX,y:screenY,r:Math.max(.55,(1+seed*1.7)*2.8/depth)});
+    }
+    c.globalCompositeOperation='lighter';
+    buckets.forEach((points,index)=>{
+     c.fillStyle=`rgba(243,192,99,${.22+index*.039})`;c.beginPath();
+     for(const p of points){c.moveTo(p.x+p.r,p.y);c.arc(p.x,p.y,p.r,0,Math.PI*2);}c.fill();
+     c.fillStyle=`rgba(233,173,66,${.014+index*.0014})`;c.beginPath();
+     for(let i=0;i<points.length;i+=5){const p=points[i];c.moveTo(p.x+p.r*3,p.y);c.arc(p.x,p.y,p.r*3,0,Math.PI*2);}c.fill();
+    });
+    c.globalCompositeOperation='source-over';if(el.dataset.state!=='ready')el.dataset.state='ready';
+   }
    if(!media.matches)frame=requestAnimationFrame(draw);
   };
   const start=()=>{cancelAnimationFrame(frame);frame=0;last=performance.now();if(!document.hidden&&inView&&!lost)frame=requestAnimationFrame(draw)};

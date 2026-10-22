@@ -1,16 +1,17 @@
 import {useEffect,useState} from 'react';
 import {ArrowDown,ArrowUpRight} from 'lucide-react';
+import Atmosphere from './Atmosphere';
 const CHAPTERS=[
- {en:'I · GLACIAL DAWN',title:'雪域初光，万境初开。',text:'雪脊、星芒与高纬流光，共同铺陈一席风土的起点。',detail:'冰川银 · 晨曦金 · 雪山风土'},
- {en:'II · WINDS OF JADE',title:'风过旷野，流金成缎。',text:'季风穿越峡谷与沙海，将山河的纹理，织成一幅无形锦缎。',detail:'翡翠青 · 香槟金 · 万里季风'},
- {en:'III · OPAL CLOUDSCAPE',title:'云海生辉，琉光入梦。',text:'霞光掠过雪峰，层云在脚下舒展。将天地最轻盈的一刻，化作私享珍藏。',detail:'月光蓝 · 珠光紫 · 玫瑰霞'},
- {en:'IV · THE PRIVATE COLLECTION',title:'三重风味，各有风华。',text:'以晨雾为盏，以气流为韵，以云端为冕。自然的层次，尽在这一席。',detail:'冷萃晨雾  /  珍藏气流  /  云端轻享'},
- {en:'V · THE GRAND UNVEILING',title:'琉璃映席，盛宴启封。',text:'杯盏映照云光，金色穹顶随君揭启。以一席天地，隆重款待知己。',detail:'琉璃杯盏 · 云端珍馐 · 零元礼遇'},
- {en:'VI · YOUR TABLE ABOVE THE CLOUDS',title:'穿过云海，山河入席。',text:'金色拱廊之外，群峰为幕，云海为席。这一刻的辽阔，只为相聚的你们珍藏。',detail:'云端露台 · 山河私宴 · 即刻留席'},
+ {en:'I · WHERE THE WIND BEGINS',title:'风起，万境生。',text:'山脊被晨光轻轻描亮。风，从更远的地方来到这里。',detail:'雪脊银 · 冰川青 · 初光'},
+ {en:'II · A THOUSAND GOLDEN CURRENTS',title:'旷野流金，天地成绸。',text:'沙丘起伏如绸，万千微光，循着季风的方向汇流。',detail:'流沙金 · 碧玉绿 · 远风'},
+ {en:'III · THE SOFTNESS OF DISTANCE',title:'云有回声，光有温度。',text:'层云漫过旷野。青碧与珠光，在风中彼此照见。',detail:'月光蓝 · 珠光紫 · 云潮'},
+ {en:'IV · ALL THAT THE EARTH HOLDS',title:'一席之间，万象丰盈。',text:'掠过山海的光，慢慢汇成一场，只属于此刻的丰盛。',detail:'山海为序 · 季风为韵 · 私享无界'},
+ {en:'V · BEYOND THE VISIBLE',title:'循光而行，不设边界。',text:'一缕风，携万里山河。一束光，照见未抵达的远方。',detail:'玫瑰霞 · 香槟金 · 无尽风土'},
+ {en:'VI · A PLACE KEPT FOR YOU',title:'天地留白，只待君至。',text:'云与风渐次舒展。把天地之间最好的位置，为你留着。',detail:'晨雾 · 季风 · 云海 · 一席珍藏'},
 ];
 export default function WindJourney(){
- const [chapter,setChapter]=useState(0);
- useEffect(()=>{const update=()=>{const el=document.getElementById('journey');if(!el)return;const r=el.getBoundingClientRect(),p=Math.max(0,Math.min(1,-r.top/Math.max(1,r.height-innerHeight)));setChapter(Math.min(5,Math.floor(p*5+.5)))};update();window.addEventListener('scroll',update,{passive:true});window.addEventListener('resize',update);return()=>{window.removeEventListener('scroll',update);window.removeEventListener('resize',update)}},[]);
- const c=CHAPTERS[chapter];
- return <section id="journey" className="wind-journey" aria-label="山河风土之旅"><div className="journey-sticky"><div className="journey-heading"><p className="eyebrow">{c.en}</p><h2>{c.title}</h2><p>{c.text}</p></div><div className="journey-bottom"><p>{c.detail}</p><div className="journey-track" aria-label={`风土之旅，第${chapter+1}章，共6章`}>{CHAPTERS.map((_,i)=><span key={i} className={chapter===i?'active':''}>0{i+1}</span>)}</div>{chapter===5?<a href="#menu" className="gold-button">甄选您的盛宴 <ArrowUpRight size={17}/></a>:<span className="journey-scroll">随您滑动 · 山河流转 <ArrowDown size={15}/></span>}</div></div></section>;
+ const [progress,setProgress]=useState(0);
+ useEffect(()=>{let frame=0;const update=()=>{frame=0;const el=document.getElementById('journey'),viewport=el?.querySelector('.journey-sticky');if(!el||!viewport)return;const r=el.getBoundingClientRect();setProgress(Math.max(0,Math.min(1,-r.top/Math.max(1,r.height-viewport.clientHeight))))};const scroll=()=>{if(!frame)frame=requestAnimationFrame(update)};update();window.addEventListener('scroll',scroll,{passive:true});window.addEventListener('resize',scroll);return()=>{cancelAnimationFrame(frame);window.removeEventListener('scroll',scroll);window.removeEventListener('resize',scroll)}},[]);
+ const coordinate=progress*5,chapter=Math.min(5,Math.round(coordinate));
+ return <section id="journey" className="wind-journey" aria-label="山河风土之旅"><div className="journey-sticky"><Atmosphere/><div className="journey-masthead"><span>THE NORTH MONSOON ATELIER</span><span>风土手记 · 0{chapter+1}</span></div><div className="journey-heading">{CHAPTERS.map((c,i)=>{const distance=Math.abs(coordinate-i),opacity=Math.max(0,Math.min(1,(.49-distance)/.18));return <div className="journey-caption" key={c.en} aria-hidden={i!==chapter} style={{opacity,transform:`translateY(${(i-coordinate)*12}px)`}}><p className="eyebrow">{c.en}</p><h2>{c.title}</h2><p>{c.text}</p></div>})}</div><div className="journey-bottom"><p>{CHAPTERS[chapter].detail}</p><div className="journey-track" aria-label={`风土之旅，第${chapter+1}章，共6章`}>{CHAPTERS.map((_,i)=><span key={i} className={chapter===i?'active':''}>0{i+1}</span>)}</div>{progress>.88?<a href="#menu" className="gold-button">甄选此间珍藏 <ArrowUpRight size={17}/></a>:<span className="journey-scroll">随您滑动 · 风与光同行 <ArrowDown size={15}/></span>}</div></div></section>;
 }

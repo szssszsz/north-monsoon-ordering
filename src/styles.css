@@ -19,3 +19,5 @@
 @media(prefers-reduced-motion:reduce){.monsoon-experience .particle-canvas{opacity:1}.monsoon-intro,.journey-heading{animation:none}}
 
 .monsoon-intro{pointer-events:auto}
+
+.wind-journey:before{background-image:none;background:radial-gradient(ellipse at 50% 50%,#caa66715,transparent 65%);opacity:1}.journey-heading{text-shadow:0 2px 18px #06121f}

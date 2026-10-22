@@ -12,7 +12,7 @@ export default function Atmosphere(){
   const gl=el.getContext('webgl',{alpha:true,antialias:false,depth:false,premultipliedAlpha:false,powerPreference:'low-power'});
   let width=innerWidth,height=innerHeight,dpr=1,frame=0,last=0,lastPaint=0,elapsed=0,active=true,lost=false,intro=true;
   let pointerX=0,pointerY=0,smoothX=0,smoothY=0,targetScene=0,scene=0;
-  const placement=[0,-.08,.86,1],target=[0,-.08,.86,1];
+  const placement=[0,-.20,.72,1],target=[0,-.20,.72,1];
   let program:WebGLProgram|null=null,buffer:WebGLBuffer|null=null;
   let uniforms:Record<string,WebGLUniformLocation|null>={};
   const count=innerWidth<640?14000:24000,seeds=new Float32Array(count*4);
@@ -34,13 +34,13 @@ export default function Atmosphere(){
   const updateLayout=()=>{
    const portrait=width/height<.85;
    let mode='quiet',top=0,bottom=height;active=false;targetScene=0;
-   if(intro){mode='intro';active=true;target[0]=0;target[1]=-.08;target[2]=portrait?.58:.91;target[3]=1;}
+   if(intro){mode='intro';active=true;target[0]=0;target[1]=-.20;target[2]=portrait?.49:.72;target[3]=1;}
    else{
     const hero=document.querySelector('.hero')?.getBoundingClientRect(),journey=document.getElementById('journey')?.getBoundingClientRect();
     if(journey&&journey.top<height*.42&&journey.bottom>height*.35){
      mode='journey';active=true;top=Math.max(0,journey.top);bottom=Math.min(height,journey.bottom);
      targetScene=Math.max(0,Math.min(3,-journey.top/Math.max(1,journey.height-height)*3));
-     target[0]=0;target[1]=-.12;target[2]=portrait?.61:1.02;target[3]=1;
+     const i=Math.min(2,Math.floor(targetScene)),f=targetScene-i,ys=[-.28,-.12,-.32,-.12];target[0]=0;target[1]=ys[i]*(1-f)+ys[i+1]*f;target[2]=portrait?.49:(targetScene>2?.80-(targetScene-2)*.08:.80);target[3]=1;
     }else if(hero&&hero.bottom>80&&hero.top<height){
      mode='hero';active=true;top=Math.max(0,hero.top);bottom=Math.min(height,hero.bottom);
      target[0]=portrait?.12:.48;target[1]=portrait?-.12:.02;target[2]=portrait?.63:.81;target[3]=portrait?.9:.95;

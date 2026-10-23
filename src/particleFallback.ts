@@ -1,38 +1,32 @@
-import {field,projectField} from './particleField';
-
-// A bounded pixel splat avoids thousands of overlapping canvas paths on phones.
-type Raster={width:number;height:number;energy:Float32Array;image:ImageData;canvas:HTMLCanvasElement;context:CanvasRenderingContext2D};
-const rasters=new WeakMap<CanvasRenderingContext2D,Raster>();
-export function drawSoftwareField(c:CanvasRenderingContext2D,width:number,height:number,progress:number,seeds:Float32Array){
- const scale=width>700?.8:1,w=Math.max(1,Math.round(width*scale)),h=Math.max(1,Math.round(height*scale));
- let raster=rasters.get(c);
- if(!raster||raster.width!==w||raster.height!==h){
-  const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
-  const context=canvas.getContext('2d')!;
-  raster={width:w,height:h,energy:new Float32Array(w*h*3),image:context.createImageData(w,h),canvas,context};rasters.set(c,raster);
- }
- const energy=raster.energy;energy.fill(0);
- const world:number[]=[],screen:number[]=[];
+import {field,projectField,colour,clamp} from './particleField';
+// Tangent-aligned traces of the same grains; batch by colour on software devices.
+type Surface={canvas:HTMLCanvasElement;context:CanvasRenderingContext2D};
+const surfaces=new WeakMap<CanvasRenderingContext2D,Surface>();
+const palette=Array.from({length:48},(_,i)=>{const c:number[]=[];colour(i/47,c);return `rgb(${c.map(n=>Math.round(n*255)).join(',')})`});
+export function drawSoftwareField(c:CanvasRenderingContext2D,width:number,height:number,progress:number,seeds:Float32Array,time=0){
+ let surface=surfaces.get(c);
+ if(!surface){const canvas=document.createElement('canvas');surface={canvas,context:canvas.getContext('2d')!};surfaces.set(c,surface);}
+ const layer=surface.canvas,ink=surface.context;
+ if(layer.width!==Math.round(width)||layer.height!==Math.round(height)){layer.width=Math.round(width);layer.height=Math.round(height);}
+ ink.clearRect(0,0,width,height);
+ const paths=Array.from({length:48},()=>new Path2D()),stars=Array.from({length:48},()=>new Path2D());
+ const a:number[]=[],b:number[]=[],sa:number[]=[],sb:number[]=[];
  for(let i=0;i<seeds.length;i+=4){
-  field(seeds[i],seeds[i+1],seeds[i+2],seeds[i+3],progress,world);
-  if(world[3]<.005)continue;
-  projectField(world,width,height,screen);
-  const x=screen[0]*scale,y=screen[1]*scale,ix=Math.floor(x),iy=Math.floor(y);
-  if(ix<0||ix>=w-1||iy<0||iy>=h-1)continue;
-  const rgb=[world[7],world[8],world[9]];
-  const dx=x-ix,dy=y-iy,power=world[3]*Math.min(2.5,screen[2]*screen[2])*.95;
-  const pixel=(iy*w+ix)*3;
-  const a=(1-dx)*(1-dy)*power,b=dx*(1-dy)*power,d=(1-dx)*dy*power,e=dx*dy*power;
-  for(let j=0;j<3;j++){energy[pixel+j]+=rgb[j]*a;energy[pixel+3+j]+=rgb[j]*b;energy[pixel+w*3+j]+=rgb[j]*d;energy[pixel+w*3+3+j]+=rgb[j]*e;}
+  const u=seeds[i],v=seeds[i+1],r=seeds[i+2],w=seeds[i+3];
+  field(u,v,r,w,progress,a,time);field(u+.0004,v,r,w,progress,b,time);
+  projectField(a,width,height,sa);projectField(b,width,height,sb);
+  const x=sa[0],y=sa[1];if(x<-10||x>width+10||y<-10||y>height+10)continue;
+  let dx=sb[0]-x,dy=sb[1]-y;const length=Math.hypot(dx,dy);if(length>width*.1||length<1e-6)continue;
+  const scale=(1.5+3.8*w)/length;dx*=scale;dy*=scale;
+  const hue=clamp(.06+progress*.64+a[4]*.12+.08*Math.sin(a[6]*Math.PI*2));
+  const bucket=Math.min(47,Math.floor(hue*48)),path=(r>.985?stars:paths)[bucket];
+  path.moveTo(x-dx*.5,y-dy*.5);path.lineTo(x+dx*.5,y+dy*.5);
  }
- const pixels=raster.image.data;
- for(let i=0,j=0;i<energy.length;i+=3,j+=4){for(let k=0;k<3;k++){const value=energy[i+k]*7.0;pixels[j+k]=255*value/(1+value)}pixels[j+3]=255;}
- raster.context.putImageData(raster.image,0,0);
- const background=c.createRadialGradient(width*.48,height*.57,0,width*.48,height*.57,width*.78);
- const warm=Math.max(0,Math.min(1,(progress-.66)/.24)),grade=warm*warm*(3-2*warm);
- background.addColorStop(0,`rgb(${17+10*grade},${39+2*grade},${55-7*grade})`);background.addColorStop(.48,'#091a2a');background.addColorStop(1,'#040d18');
- c.globalCompositeOperation='source-over';c.fillStyle=background;c.fillRect(0,0,width,height);
- c.globalCompositeOperation='screen';c.drawImage(raster.canvas,0,0,width,height);
- c.globalAlpha=.25;c.filter='blur(2.4px)';c.drawImage(raster.canvas,0,0,width,height);
+ ink.globalCompositeOperation='lighter';ink.lineCap='round';
+ for(let i=0;i<48;i++){ink.strokeStyle=palette[i];ink.lineWidth=.75;ink.globalAlpha=.58;ink.stroke(paths[i]);ink.lineWidth=1.2;ink.globalAlpha=.85;ink.stroke(stars[i]);}
+ const bg=c.createRadialGradient(width*.5,height*.54,0,width*.5,height*.54,width*.65);
+ bg.addColorStop(0,progress<.6?'#061520':'#151511');bg.addColorStop(.55,'#030a12');bg.addColorStop(1,'#01050a');
+ c.globalCompositeOperation='source-over';c.globalAlpha=1;c.fillStyle=bg;c.fillRect(0,0,width,height);
+ c.globalCompositeOperation='screen';c.drawImage(layer,0,0,width,height);c.globalAlpha=.65;c.filter='blur(5px)';c.drawImage(layer,0,0,width,height);
  c.filter='none';c.globalAlpha=1;c.globalCompositeOperation='source-over';
 }

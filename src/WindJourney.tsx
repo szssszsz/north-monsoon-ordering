@@ -25,8 +25,8 @@ export default function WindJourney(){
   <Atmosphere/>
   <div className="journey-masthead"><span>ONE BREATH, A THOUSAND LANDSCAPES</span><span>一尘万境 · 0{chapter+1}</span></div>
   <div className="journey-heading">{CHAPTERS.map((c,i)=>{
-   const enter=i===0?1:ease(CUTS[i-1]-.023,CUTS[i-1]+.023,progress);
-   const leave=i===CHAPTERS.length-1?0:ease(CUTS[i]-.023,CUTS[i]+.023,progress);
+   const enter=i===0?1:ease(CUTS[i-1]+.003,CUTS[i-1]+.032,progress);
+   const leave=i===CHAPTERS.length-1?0:ease(CUTS[i]-.032,CUTS[i]-.003,progress);
    const opacity=enter*(1-leave);
    return <div className="journey-caption" key={c.en} aria-hidden={i!==chapter} style={{opacity,transform:`translateY(${(1-enter)*8-leave*8}px)`}}><p className="eyebrow">{c.en}</p><h2>{c.title}</h2><p>{c.text}</p></div>;
   })}</div>

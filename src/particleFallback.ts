@@ -1,23 +1,39 @@
 import {field,colorAt,projectField} from './particleField';
+
+// A bounded pixel splat avoids thousands of overlapping canvas paths on phones.
+const PALETTE=Array.from({length:256},(_,i)=>{const c:number[]=[];colorAt(i/256,c);return c});
+type Raster={width:number;height:number;energy:Float32Array;image:ImageData;canvas:HTMLCanvasElement;context:CanvasRenderingContext2D};
+const rasters=new WeakMap<CanvasRenderingContext2D,Raster>();
 export function drawSoftwareField(c:CanvasRenderingContext2D,width:number,height:number,progress:number,seeds:Float32Array){
- const background=c.createRadialGradient(width*.48,height*.57,0,width*.48,height*.57,width*.78);
- background.addColorStop(0,'#102c39');background.addColorStop(.48,'#071b2a');background.addColorStop(1,'#030a13');
- c.globalCompositeOperation='source-over';c.fillStyle=background;c.fillRect(0,0,width,height);
- const buckets:number[][]=Array.from({length:144},()=>[]),world:number[]=[],screen:number[]=[],rgb:number[]=[];
+ const scale=width>700?.8:1,w=Math.max(1,Math.round(width*scale)),h=Math.max(1,Math.round(height*scale));
+ let raster=rasters.get(c);
+ if(!raster||raster.width!==w||raster.height!==h){
+  const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+  const context=canvas.getContext('2d')!;
+  raster={width:w,height:h,energy:new Float32Array(w*h*3),image:context.createImageData(w,h),canvas,context};rasters.set(c,raster);
+ }
+ const energy=raster.energy;energy.fill(0);
+ const world:number[]=[],screen:number[]=[];
  for(let i=0;i<seeds.length;i+=4){
-  field(seeds[i],seeds[i+1],seeds[i+2],seeds[i+3],progress,world);projectField(world,width,height,screen);
-  const [x,y,size]=screen;if(x< -12||x>width+12||y< -12||y>height+12||world[3]<.002)continue;
-  const color=Math.min(11,Math.floor(world[4]*12)),light=Math.min(3,Math.floor(world[3]*5.5)),radius=Math.min(2,Math.floor(size*1.25));
-  buckets[(color*4+light)*3+radius].push(x,y,Math.max(.30,size*.62));
+  field(seeds[i],seeds[i+1],seeds[i+2],seeds[i+3],progress,world);
+  if(world[3]<.005)continue;
+  projectField(world,width,height,screen);
+  const x=screen[0]*scale,y=screen[1]*scale,ix=Math.floor(x),iy=Math.floor(y);
+  if(ix<0||ix>=w-1||iy<0||iy>=h-1)continue;
+  const rgb=PALETTE[Math.max(0,Math.min(255,Math.floor(world[4]*256)))];
+  const dx=x-ix,dy=y-iy,power=world[3]*Math.min(2.5,screen[2]*screen[2])*.95;
+  const pixel=(iy*w+ix)*3;
+  const a=(1-dx)*(1-dy)*power,b=dx*(1-dy)*power,d=(1-dx)*dy*power,e=dx*dy*power;
+  for(let j=0;j<3;j++){energy[pixel+j]+=rgb[j]*a;energy[pixel+3+j]+=rgb[j]*b;energy[pixel+w*3+j]+=rgb[j]*d;energy[pixel+w*3+3+j]+=rgb[j]*e;}
  }
- c.globalCompositeOperation='lighter';
- for(let k=0;k<buckets.length;k++){
-  const points=buckets[k];if(!points.length)continue;
-  const light=Math.floor(k/3)%4,tint=Math.floor(k/12);colorAt((tint+.5)/12,rgb);const color=rgb.map(v=>Math.round(v*255)).join(',');
-  c.fillStyle=`rgba(${color},${.24+light*.20})`;c.beginPath();
-  for(let i=0;i<points.length;i+=3){const x=points[i],y=points[i+1],r=points[i+2];c.moveTo(x+r,y);c.arc(x,y,r,0,Math.PI*2)}c.fill();
-  c.fillStyle=`rgba(${color},${.025+light*.012})`;c.beginPath();
-  for(let i=0;i<points.length;i+=9){const x=points[i],y=points[i+1],r=points[i+2]*3.4;c.moveTo(x+r,y);c.arc(x,y,r,0,Math.PI*2)}c.fill();
- }
- c.globalCompositeOperation='source-over';
+ const pixels=raster.image.data;
+ for(let i=0,j=0;i<energy.length;i+=3,j+=4){for(let k=0;k<3;k++){const value=energy[i+k]*3.8;pixels[j+k]=255*value/(1+value)}pixels[j+3]=255;}
+ raster.context.putImageData(raster.image,0,0);
+ const background=c.createRadialGradient(width*.48,height*.57,0,width*.48,height*.57,width*.78);
+ const warm=Math.max(0,Math.min(1,(progress-.66)/.24)),grade=warm*warm*(3-2*warm);
+ background.addColorStop(0,`rgb(${17+10*grade},${39+2*grade},${55-7*grade})`);background.addColorStop(.48,'#091a2a');background.addColorStop(1,'#040d18');
+ c.globalCompositeOperation='source-over';c.fillStyle=background;c.fillRect(0,0,width,height);
+ c.globalCompositeOperation='screen';c.drawImage(raster.canvas,0,0,width,height);
+ c.globalAlpha=.36;c.filter='blur(3px)';c.drawImage(raster.canvas,0,0,width,height);
+ c.filter='none';c.globalAlpha=1;c.globalCompositeOperation='source-over';
 }

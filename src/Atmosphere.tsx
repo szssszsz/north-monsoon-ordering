@@ -10,7 +10,7 @@ export default function Atmosphere(){
   const root:HTMLDivElement=layerNode,canvas:HTMLCanvasElement=gpuNode,backup:HTMLCanvasElement=softwareNode;
   const host=root.parentElement!,journey=document.getElementById('journey')!;
   const gl=canvas.getContext('webgl',{alpha:false,antialias:false,depth:false,premultipliedAlpha:false});
-  const cpu=backup.getContext('2d'),small=innerWidth<640,count=small?88000:144000,seeds=makeSeeds(count),fallbackSeeds=seeds.subarray(0,(small?23000:42000)*4);
+  const cpu=backup.getContext('2d'),small=innerWidth<640,count=small?132000:220000,seeds=makeSeeds(count),fallbackSeeds=seeds.subarray(0,(small?38000:72000)*4);
   let width=0,height=0,dpr=1,progress=0,frame=0,paintCount=0,active=false,lastKey='',working=false;
   let particles:WebGLProgram|null=null,post:WebGLProgram|null=null,points:WebGLBuffer|null=null,quad:WebGLBuffer|null=null,image:WebGLTexture|null=null,target:WebGLFramebuffer|null=null;
   let particleUniforms:Record<string,WebGLUniformLocation|null>={},postUniforms:Record<string,WebGLUniformLocation|null>={};

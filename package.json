@@ -7,11 +7,11 @@
     "node": ">=24"
   },
   "scripts": {
-    "build": "vite build",
+    "build": "node scripts/compose-particles.mjs && vite build",
     "start": "node server/index.mjs",
     "check": "tsc --noEmit",
     "pretest": "npm run build",
-    "test": "node --test test/api.test.mjs"
+    "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
     "lucide-react": "1.31.0",

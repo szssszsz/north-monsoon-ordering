@@ -14,7 +14,7 @@ export default function Atmosphere(){
   let width=0,height=0,dpr=1,progress=0,frame=0,paintCount=0,active=false,lastKey='',working=false;
   let particles:WebGLProgram|null=null,post:WebGLProgram|null=null,points:WebGLBuffer|null=null,quad:WebGLBuffer|null=null,image:WebGLTexture|null=null,target:WebGLFramebuffer|null=null;
   let particleUniforms:Record<string,WebGLUniformLocation|null>={},postUniforms:Record<string,WebGLUniformLocation|null>={};
-  const mode=(webgl:boolean)=>{working=webgl;root.dataset.renderer=webgl?'webgl-flow':'canvas-flow';canvas.hidden=!webgl;backup.hidden=webgl;root.dataset.particles=String(webgl?count:fallbackSeeds.length/4)};
+  const mode=(webgl:boolean)=>{working=webgl;root.dataset.renderer=webgl?'webgl-material':'canvas-material';canvas.hidden=!webgl;backup.hidden=webgl;root.dataset.particles=String(webgl?count:fallbackSeeds.length/4)};
   function destroy(){if(!gl)return;gl.deleteProgram(particles);gl.deleteProgram(post);gl.deleteBuffer(points);gl.deleteBuffer(quad);gl.deleteTexture(image);gl.deleteFramebuffer(target);}
   function initialise(){
    if(!gl){mode(false);return;}

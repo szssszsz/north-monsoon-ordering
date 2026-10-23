@@ -61,18 +61,18 @@ if(w<.40){
 }else if(w<.92){
  // A single non-looping gust: snow -> dune -> cloud -> the light beyond.
  let head=-.03+1.22*p;
- let t=clamp(head-u*.24,0.,1.);
+ let t=clamp(head-u*.31,0.,1.);
  let k=0.;
  if(t<.42){k=t/.42;x=curve(k,-3.4,-2.6,-1.6,.6);y=curve(k,.60,1.0,-.75,-.55);z=curve(k,-1.3,-.4,1.9,1.4);}
  else if(t<.73){k=(t-.42)/.31;x=curve(k,.6,2.6,3.0,1.3);y=curve(k,-.55,-.5,.68,.65);z=curve(k,1.4,.8,-.4,-1.2);}
  else{k=(t-.73)/.27;x=curve(k,1.3,.3,-1.0,-.55);y=curve(k,.65,.90,.70,.70);z=curve(k,-1.2,-1.7,-2.0,-2.4);}
- let spread=(.020+.065*sin(t*3.14159265))*(.35+.65*sin(u*3.14159265));
- let angle=v*6.2831853,band=pow(r,.7);
+ let spread=(.045+.13*sin(t*3.14159265))*(.35+.65*sin(u*3.14159265));
+ let angle=v*6.2831853,band=sqrt(r);
  y+=cos(angle)*spread*band;z+=sin(angle)*spread*band*1.8;
  // Tiny aligned fibres, never model-to-model connecting lines.
  y+=.008*sin(t*70.+v*6.2831853);z+=.009*cos(t*63.+v*6.2831853);
  let tail=pow(1.-u,1.5),ends=smoothstep(0.,.05,t)*(1.-smoothstep(.98,1.,t));
- light=(.14+tail*.40)*ends*smoothstep(.015,.08,p)*(1.-smoothstep(.88,.97,p));
+ light=(.025+tail*.16)*ends*smoothstep(.015,.08,p)*(1.-smoothstep(.88,.97,p));
  tint=mix(.15,.53,smoothstep(.15,.50,t));size=.64+r*.65;
 }else if(w<.97){
  let t=u,width=.018+pow(t,2.)*.29;
@@ -161,18 +161,18 @@ if(w<.40){
 }else if(w<.92){
  // A single non-looping gust: snow -> dune -> cloud -> the light beyond.
  float head=-.03+1.22*p;
- float t=clamp(head-u*.24,0.,1.);
+ float t=clamp(head-u*.31,0.,1.);
  float k=0.;
  if(t<.42){k=t/.42;x=curve(k,-3.4,-2.6,-1.6,.6);y=curve(k,.60,1.0,-.75,-.55);z=curve(k,-1.3,-.4,1.9,1.4);}
  else if(t<.73){k=(t-.42)/.31;x=curve(k,.6,2.6,3.0,1.3);y=curve(k,-.55,-.5,.68,.65);z=curve(k,1.4,.8,-.4,-1.2);}
  else{k=(t-.73)/.27;x=curve(k,1.3,.3,-1.0,-.55);y=curve(k,.65,.90,.70,.70);z=curve(k,-1.2,-1.7,-2.0,-2.4);}
- float spread=(.020+.065*sin(t*3.14159265))*(.35+.65*sin(u*3.14159265));
- float angle=v*6.2831853,band=pow(r,.7);
+ float spread=(.045+.13*sin(t*3.14159265))*(.35+.65*sin(u*3.14159265));
+ float angle=v*6.2831853,band=sqrt(r);
  y+=cos(angle)*spread*band;z+=sin(angle)*spread*band*1.8;
  // Tiny aligned fibres, never model-to-model connecting lines.
  y+=.008*sin(t*70.+v*6.2831853);z+=.009*cos(t*63.+v*6.2831853);
  float tail=pow(1.-u,1.5),ends=smoothstep(0.,.05,t)*(1.-smoothstep(.98,1.,t));
- light=(.14+tail*.40)*ends*smoothstep(.015,.08,p)*(1.-smoothstep(.88,.97,p));
+ light=(.025+tail*.16)*ends*smoothstep(.015,.08,p)*(1.-smoothstep(.88,.97,p));
  tint=mix(.15,.53,smoothstep(.15,.50,t));size=.64+r*.65;
 }else if(w<.97){
  float t=u,width=.018+pow(t,2.)*.29;

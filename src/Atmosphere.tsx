@@ -10,7 +10,7 @@ export default function Atmosphere(){
   const root:HTMLDivElement=layerNode;
   const host=root.parentElement!,journey=document.getElementById('journey')!;
   const gl=canvas.getContext('webgl',{alpha:false,antialias:false,depth:false,premultipliedAlpha:false}),cpu=backup.getContext('2d');
-  const small=innerWidth<640,count=small?52000:112000,seeds=makeSeeds(count),fallbackSeeds=seeds.subarray(0,(small?10000:18000)*4);
+  const small=innerWidth<640,count=small?72000:180000,seeds=makeSeeds(count),fallbackSeeds=seeds.subarray(0,(small?12000:18000)*4);
   const motion=matchMedia('(prefers-reduced-motion: reduce)');
   let width=0,height=0,dpr=1,targetProgress=0,progress=0,frame=0,paintCount=0,active=false,working=false,disposed=false,clock=0,lastTime=0,lastPaint=0;
   let particles:WebGLProgram|null=null,post:WebGLProgram|null=null,points:WebGLBuffer|null=null,quad:WebGLBuffer|null=null,image:WebGLTexture|null=null,target:WebGLFramebuffer|null=null;

@@ -1,132 +1,87 @@
-// Moving light, defined by contour families rather than image samples or meshes.
-const {sin,cos,exp,pow,abs,min,max,floor,PI}=Math;
-const TAU=PI*2;
-export const STRANDS=84;
+// Generated from scripts/compose-wind.mjs. No images, meshes or sampled artwork.
+const {sin,cos,exp,pow,abs,min,max,floor,sqrt}=Math;const PI=Math.PI,TAU=PI*2;
+export const STRANDS=128;
 export const clamp=(x:number,a=0,b=1)=>max(a,min(b,x));
-const mix=(a:number,b:number,t:number)=>a+(b-a)*t;
-const ease=(x:number)=>x*x*x*(x*(x*6-15)+10);
-export function makeSeeds(count:number){
- const data=new Float32Array(count*4);let state=0x6d2b79f5;
- for(let i=0;i<data.length;i++){state=(state+0x6d2b79f5)|0;let n=Math.imul(state^(state>>>15),1|state);n^=n+Math.imul(n^(n>>>7),61|n);data[i]=((n^(n>>>14))>>>0)/4294967296;}return data;
-}
-export function movement(progress:number){
- const p=clamp(progress);
- // Each composition opens fully before the next long, continuous gesture.
- if(p<.5)return [0,ease(clamp((p-.09)/.32))];
- return [1,ease(clamp((p-.58)/.33))];
-}
-export function contour(u:number,v:number,stage:number,out:number[]){
- const x=-6.2*cos(u*TAU);let y=0,z=0;
- if(stage===0){
-  const q=x+.42*sin(v*3.1);
-  const ridge=2.72*exp(-pow(abs((q+.65)/1.20),1.36))+1.22*exp(-pow(abs((q+3.15)/.91),1.58))+1.62*exp(-pow(abs((q-2.30)/1.04),1.45));
-  y=-1.25+ridge*(1-v*.50)+v*.82+.055*sin(q*7.2+v*5.1)*(1-v);
-  z=(v-.5)*2.2+.12*sin(q*1.8+v*3);
- }else if(stage===1){
-  const crest=exp(-pow((x-1.05)/2.00,2)),bend=sin(x*.69-v*.85);
-  y=-.40+bend*(.55+v*.62)+crest*(2.35-v*1.20)+(v-.5)*.60;
-  z=cos(x*.66-v*.75)*(1.10+v*.70);
- }else{
-  const a=u*TAU;
+const mix=(a:number,b:number,t:number)=>a+(b-a)*t,mod=(a:number,b:number)=>((a%b)+b)%b;
+const easeRange=(a:number,b:number,p:number)=>{const t=clamp((p-a)/(b-a));return t*t*t*(t*(t*6-15)+10)};
+function shape(u:number,v:number,stage:number,out:number[]){
+ let a=u*TAU,x=-6.8*cos(a),y=0.,z=0.;
+ if(stage<.5){
+  let q=x+.78*sin(v*3.8),ridge=3.08*exp(-pow(abs((q+1.15)/1.02),1.20))+1.60*exp(-pow(abs((q+3.65)/.82),1.34))+2.02*exp(-pow(abs((q-2.15)/1.18),1.30));
+  let etch=.18*sin(q*8.2+v*10.0)+.075*sin(q*21.3-v*6.0)+.034*sin(q*47.0+v*19.0);
+  y=-1.60+ridge*(1.-v*.24)+etch*(.9-v*.5)+v*.65;
+  z=1.35-v*7.6+.34*sin(q*.8+v*6.0)+.14*sin(a);
+ }else if(stage<1.5){
+  // An asymmetrical cloud cyclone; its inner current comes towards the lens.
+  let angle=a+v*2.70,radius=.52+v*3.36;
+  x=.75+radius*cos(angle)*1.46+.46*sin(angle*2.+v*3.);
+  y=.45+radius*sin(angle)*.88+.32*sin(angle*3.+v*2.);
+  z=2.10*sin(angle)+.42*cos(angle*3.)+(1.-v)*1.15;
+ }else if(stage<2.5){
   if(v<.075){
-   const yy=1.92*cos(a),body=.24*exp(-pow((yy+.45)/.68,2))+.035+.075*exp(-pow((yy-1.45)/.20,2));
-   out[0]=.11*sin(yy*1.3)+sin(a)*body*(.3+v*9);out[1]=yy;out[2]=.24+.06*cos(a);return;
+   let yy=2.35*cos(a),body=.26*exp(-pow((yy+.65)/.78,2.))+.028+.080*exp(-pow((yy-1.58)/.16,2.));
+   x=.16*sin(yy*1.15)+sin(a)*body*(.25+v*10.);y=yy;z=.52+.12*cos(a);
+  }else{
+   let wing=(v-.075)/.925,side=wing<.5?-1.:1.,j=mod(wing*2.,1.),f=(1.-cos(a))*.5;
+   let rootX=.12+j*5.4,rootY=.18+2.65*sin(j*PI*.81),tipX=rootX+.30+j*.90,tipY=rootY-.75-1.7*sin(j*PI);
+   let bend=sin(f*PI),xx=side*(mix(rootX,tipX,f)+bend*.52*(1.-j*.7)+sin(a)*.008),yy=mix(rootY,tipY,f)+bend*.24*(j*2.-1.);
+   x=xx*cos(.23)-yy*sin(.23);y=xx*sin(.23)+yy*cos(.23);z=.95*sin(j*PI)+side*.38+sin(a)*.22;
   }
-  const wing=(v-.075)/.925,side=wing<.5?-1:1,j=(wing*2)%1,f=u<.5?u*2:2-u*2;
-  const rootX=.16+j*4.70,rootY=.12+2.15*sin(j*PI*.80);
-  const tipX=rootX+.48+j*.68,tipY=rootY-.60-1.37*sin(j*PI);
-  const bend=sin(f*PI);
-  const xx=side*(mix(rootX,tipX,f)+bend*.42*(1-j*.5)+sin(a)*.012);
-  const yy=mix(rootY,tipY,f)+bend*.18*(j*2-1)+side*.13*sin(j*PI);
-  out[0]=xx*cos(.12)-yy*sin(.12);out[1]=xx*sin(.12)+yy*cos(.12);out[2]=.40*sin(j*PI)+sin(a)*.11;return;
+ }else{
+  if(v<.12){
+   let radius=.84*sqrt(v/.12)+.022*sin(a*13.+v*37.)+.016*cos(a*21.-v*53.);
+   x=2.85+radius*cos(a);y=2.05+radius*sin(a);z=-2.70;
+  }else{
+   let d=(v-.12)/.88;
+   x=-8.6*cos(a);z=-9.0+d*12.4+.32*sin(a);
+   y=-.58+.11*sin(x*2.8+z*1.8)+.045*sin(x*7.3-z*3.2);
+  }
  }
  out[0]=x;out[1]=y;out[2]=z;
 }
-// Software devices reuse geometry, not rendered frames. Only moving material
-// coordinates are sampled each frame; the light is still drawn afresh.
-let paths:Float32Array|null=null;
-const STEPS=512;
-function sampleContour(u:number,line:number,stage:number,out:number[]){
- if(!paths){
-  paths=new Float32Array(3*STRANDS*(STEPS+1)*3);const point:number[]=[];
-  for(let s=0;s<3;s++)for(let v=0;v<STRANDS;v++)for(let j=0;j<=STEPS;j++){
-   contour(j/STEPS,(v+.5)/STRANDS,s,point);
-   const offset=((s*STRANDS+v)*(STEPS+1)+j)*3;
-   for(let k=0;k<3;k++)paths[offset+k]=point[k];
-  }
- }
- const q=u*STEPS,j=min(STEPS-1,floor(q)),f=q-j,offset=((stage*STRANDS+line)*(STEPS+1)+j)*3;
- for(let k=0;k<3;k++)out[k]=mix(paths[offset+k],paths[offset+k+3],f);
+function view(x:number,y:number,z:number,p:number,time:number,out:number[]){
+ let orbit=.16*sin(p*TAU)*(1.-easeRange(.82,1.,p));
+ let bank=-.04+.24*easeRange(.40,.70,p)-.20*easeRange(.80,1.,p);
+ let swell=exp(-pow((p-.43)/.17,2.)),near=exp(-pow((p-.70)/.12,2.));
+ let scale=.96+.22*swell+.17*near,push=.95*swell;
+ let xx=x*cos(orbit)+z*sin(orbit),zz=-x*sin(orbit)+z*cos(orbit)+push;
+ let yy=y;
+ out[0]=(xx*cos(bank)-yy*sin(bank))*scale-.18*sin(p*PI);
+ out[1]=(xx*sin(bank)+yy*cos(bank))*scale;
+ out[2]=zz;
 }
-const first:number[]=[],next:number[]=[];
+export function makeSeeds(count:number){const data=new Float32Array(count*4);let state=0x6d2b79f5;for(let i=0;i<data.length;i++){state=(state+0x6d2b79f5)|0;let n=Math.imul(state^(state>>>15),1|state);n^=n+Math.imul(n^(n>>>7),61|n);data[i]=((n^(n>>>14))>>>0)/4294967296;}return data;}
+export function movement(p:number){p=clamp(p);if(p<.34)return [0,easeRange(.17,.33,p)];if(p<.70)return [1,easeRange(.44,.67,p)];return [2,easeRange(.79,.98,p)];}
+let paths:Float32Array|null=null;const STEPS=1024;
+function sample(u:number,line:number,stage:number,out:number[]){
+ if(!paths){paths=new Float32Array(4*STRANDS*(STEPS+1)*3);const q:number[]=[];for(let s=0;s<4;s++)for(let v=0;v<STRANDS;v++)for(let j=0;j<=STEPS;j++){shape(j/STEPS,(v+.5)/STRANDS,s,q);const k=((s*STRANDS+v)*(STEPS+1)+j)*3;for(let c=0;c<3;c++)paths[k+c]=q[c];}}
+ const f=u*STEPS,j=min(STEPS-1,floor(f)),a=f-j,k=((stage*STRANDS+line)*(STEPS+1)+j)*3;for(let c=0;c<3;c++)out[c]=mix(paths[k+c],paths[k+c+3],a);
+}
+const a:number[]=[],b:number[]=[],centre:number[]=[],origin:number[]=[],basis:number[]=[],matrix=new Float64Array(9);
+let preparedP=NaN,preparedT=NaN,stageNow=0,blendNow=0,flapNow=0,endNow=0;
+function prepare(p:number,time:number){
+ if(p===preparedP&&time===preparedT)return;
+ preparedP=p;preparedT=time;const score=movement(p);stageNow=score[0];blendNow=score[1];flapNow=.13*easeRange(.49,.65,p)*(1-easeRange(.79,.98,p));endNow=easeRange(.80,.99,p);
+ view(0,0,0,p,time,origin);
+ for(let j=0;j<3;j++){view(j===0?1:0,j===1?1:0,j===2?1:0,p,time,basis);for(let k=0;k<3;k++)matrix[j*3+k]=basis[k]-origin[k];}
+ view(2.85,2.05,-2.70,p,time,centre);
+}
+function camera(x:number,y:number,z:number,out:number[]){for(let k=0;k<3;k++)out[k]=origin[k]+matrix[k]*x+matrix[3+k]*y+matrix[6+k]*z;}
 export function field(u:number,v:number,r:number,w:number,p:number,out:number[],time=0){
- const line=min(STRANDS-1,floor(v*STRANDS)),material=(line+.5)/STRANDS,phase=(u+time*(.017+.012*material))%1;
- const [stage,s]=movement(p);sampleContour(phase,line,stage,first);sampleContour(phase,line,stage+1,next);
- const dx=next[0]-first[0],dy=next[1]-first[1],curl=sin(s*PI),grain=(r-.5)*(.018+pow(r,13)*.38);
- out[0]=mix(first[0],next[0],s)-dy*curl*.10+grain*sin(w*TAU);
- out[1]=(mix(first[1],next[1],s)+dx*curl*.055+grain*cos(w*TAU)+stage*s*.22*sin(time*.8+abs(out[0])*.36)*sin(abs(out[0])*.42))*1.10;
- out[2]=mix(first[2],next[2],s)+grain;
- out[3]=(.16+.48*pow(1-material,3))*(.65+.35*w);
- out[4]=material;out[5]=.45+.65*w;out[6]=phase;
+ prepare(p,time);const line=min(STRANDS-1,floor(v*STRANDS)),material=(line+.5)/STRANDS,phase=mod(u+time*(.012+.019*material),1),stage=stageNow,s=blendNow;sample(phase,line,stage,a);sample(phase,line,stage+1,b);
+ const curl=sin(s*PI),grain=(r-.5)*(.035+.72*pow(w,10));
+ const x=mix(a[0],b[0],s)-(b[1]-a[1])*curl*.14+grain*sin(w*TAU);
+ const y=mix(a[1],b[1],s)+(b[0]-a[0])*curl*.10+grain*cos(w*TAU);
+ const z=mix(a[2],b[2],s)+curl*.65*sin(phase*TAU+material*4)+grain*sin(r*TAU);
+ camera(x,y+sin(time*.52+x*.34)*flapNow,z,out);out[3]=.22+.30*r;out[4]=material;out[5]=.45+.65*w;out[6]=phase;
+ out[7]=stage>1.5&&material<.12?s:0;out[8]=centre[0];
+ const carving=.38+.76*pow(abs(sin(material*19.7)),8),end=endNow,reflection=exp(-pow((out[0]-2.65)/.48,2));
+ out[9]=carving*(.34+.66*pow(w,3))*mix(1,material<.12?.45:.15+reflection*1.55,end)*clamp(2/(1+(7.8-out[2])*.18),.3,1.35);
 }
-export function colour(t:number,out:number[]){
- const palette=[[.37,.65,1],[.55,.93,.96],[1,.80,.42],[1,.94,.78]],q=clamp(t,0,.999999)*3,i=floor(q),f=q-i;
- for(let k=0;k<3;k++)out[k]=mix(palette[i][k],palette[i+1][k],f);
-}
-export function projectField(point:number[],width:number,height:number,out:number[]){
- const compress=width/height<.9?.36:1,focal=min(width*.97/(12.4*compress),height*(height<650?.40:.58)/3.8)*7.8,depth=7.8-point[2];
- out[0]=width*.5+point[0]*compress*focal/depth;out[1]=height*(height<650?.66:width/height<.9?.63:.59)-point[1]*focal/depth;out[2]=focal/depth;
-}
-export const vertexSource=`precision highp float;
-attribute vec4 aSeed;uniform vec2 uResolution;uniform float uProgress,uTime,uDpr;
-varying vec3 vColor;varying float vOpacity;varying vec2 vAxis;varying float vLength;
-const float PI=3.141592653589793;
-float ease(float x){return x*x*x*(x*(x*6.-15.)+10.);}
-vec3 contour(float u,float v,float stage){
- float x=-6.2*cos(u*PI*2.),y=0.,z=0.;
- if(stage<.5){
-  float q=x+.42*sin(v*3.1);
-  float ridge=2.72*exp(-pow(abs((q+.65)/1.20),1.36))+1.22*exp(-pow(abs((q+3.15)/.91),1.58))+1.62*exp(-pow(abs((q-2.30)/1.04),1.45));
-  y=-1.25+ridge*(1.-v*.50)+v*.82+.055*sin(q*7.2+v*5.1)*(1.-v);
-  z=(v-.5)*2.2+.12*sin(q*1.8+v*3.);
- }else if(stage<1.5){
-  float crest=exp(-pow((x-1.05)/2.00,2.)),bend=sin(x*.69-v*.85);
-  y=-.40+bend*(.55+v*.62)+crest*(2.35-v*1.20)+(v-.5)*.60;z=cos(x*.66-v*.75)*(1.10+v*.70);
- }else{
-  float a=u*PI*2.;
-  if(v<.075){float yy=1.92*cos(a),body=.24*exp(-pow((yy+.45)/.68,2.))+.035+.075*exp(-pow((yy-1.45)/.20,2.));return vec3(.11*sin(yy*1.3)+sin(a)*body*(.3+v*9.),yy,.24+.06*cos(a));}
-  float wing=(v-.075)/.925,side=wing<.5?-1.:1.,j=fract(wing*2.),f=u<.5?u*2.:2.-u*2.;
-  float rootX=.16+j*4.70,rootY=.12+2.15*sin(j*PI*.80),tipX=rootX+.48+j*.68,tipY=rootY-.60-1.37*sin(j*PI);
-  float bend=sin(f*PI),xx=side*(mix(rootX,tipX,f)+bend*.42*(1.-j*.5)+sin(a)*.012),yy=mix(rootY,tipY,f)+bend*.18*(j*2.-1.)+side*.13*sin(j*PI);
-  return vec3(xx*cos(.12)-yy*sin(.12),xx*sin(.12)+yy*cos(.12),.40*sin(j*PI)+sin(a)*.11);
- }return vec3(x,y,z);
-}
-vec3 position(float u,float v,float r,float w,float stage,float s){
- vec3 a=contour(u,v,stage),b=contour(u,v,stage+1.);float curl=sin(s*PI),grain=(r-.5)*(.018+pow(r,13.)*.38);
- return mix(a,b,s)+curl*vec3(-(b.y-a.y)*.10,(b.x-a.x)*.055,0.)+grain*vec3(sin(w*PI*2.),cos(w*PI*2.),1.);
-}
-vec3 palette(float t){
- float q=clamp(t,0.,.999999)*3.;vec3 a=vec3(.37,.65,1.),b=vec3(.55,.93,.96),c=vec3(1.,.80,.42),d=vec3(1.,.94,.78);
- if(q<1.)return mix(a,b,q);if(q<2.)return mix(b,c,q-1.);return mix(c,d,q-2.);
-}
-vec2 project(vec3 point,float focal,float compress){return vec2(point.x*compress,point.y)*focal/(7.8-point.z);}
-void main(){
- float v=(floor(aSeed.y*84.)+.5)/84.,r=aSeed.z,w=aSeed.w,u=fract(aSeed.x+uTime*(.017+.012*v)),stage=uProgress<.5?0.:1.;
- float s=ease(clamp(uProgress<.5?(uProgress-.09)/.32:(uProgress-.58)/.33,0.,1.));
- vec3 pos=position(u,v,r,w,stage,s),ahead=position(u+.0004,v,r,w,stage,s);pos.y+=stage*s*.22*sin(uTime*.8+abs(pos.x)*.36)*sin(abs(pos.x)*.42);ahead.y+=stage*s*.22*sin(uTime*.8+abs(ahead.x)*.36)*sin(abs(ahead.x)*.42);pos.y*=1.10;ahead.y*=1.10;
- float compress=uResolution.x/uResolution.y<.9?.36:1.,focal=min(uResolution.x*.97/(12.4*compress),uResolution.y*(uResolution.y<650.?.40:.58)/3.8)*7.8;
- vec2 screen=project(pos,focal,compress),direction=project(ahead,focal,compress)-screen;
- vAxis=normalize(direction+vec2(.00001));vLength=2.2+4.0*w;
- gl_Position=vec4((screen/uResolution+vec2(.5,uResolution.y<650.?-.16:uResolution.x/uResolution.y<.9?-.13:-.09))*2.-vec2(1.,0.),0.,1.);gl_PointSize=vLength*uDpr;
- vOpacity=(.16+.48*pow(1.-v,3.))*(.65+.35*w)*(uResolution.x<640.?.42:.72);
- vColor=palette(clamp(.06+uProgress*.64+v*.12+.08*sin(u*PI*2.),0.,1.));
-}`;
-export const fragmentSource=`precision mediump float;varying vec3 vColor;varying float vOpacity;varying vec2 vAxis;varying float vLength;
-void main(){vec2 q=(gl_PointCoord-.5)*2.;q.y=-q.y;vec2 along=vec2(dot(q,vAxis),dot(q,vec2(-vAxis.y,vAxis.x)));float core=exp(-along.x*along.x*2.2-along.y*along.y*vLength*vLength*1.6);if(core<.008)discard;gl_FragColor=vec4(vColor,core*vOpacity);}`;
-export const postVertexSource=`attribute vec2 aPosition;varying vec2 vUV;void main(){vUV=aPosition*.5+.5;gl_Position=vec4(aPosition,0.,1.);}`;
-export const postFragmentSource=`precision mediump float;uniform sampler2D uImage;uniform vec2 uTexel;uniform float uProgress;varying vec2 vUV;
-void main(){vec3 fine=texture2D(uImage,vUV).rgb,glow=vec3(0.);
- for(int i=0;i<4;i++){vec2 d=uTexel*(2.+float(i)*4.);glow+=(texture2D(uImage,vUV+d).rgb+texture2D(uImage,vUV+vec2(-d.x,d.y)).rgb+texture2D(uImage,vUV+vec2(d.x,-d.y)).rgb+texture2D(uImage,vUV-d).rgb)*.0625;}
- vec2 q=vUV-vec2(.52,.42);float haze=exp(-dot(q*vec2(.8,1.6),q*vec2(.8,1.6))*9.);
- vec3 ink=vec3(.006,.014,.028)+haze*mix(vec3(.009,.023,.035),vec3(.029,.018,.006),uProgress),light=vec3(1.)-exp(-(fine*1.8+glow*1.6));gl_FragColor=vec4(ink+light,1.);
-}`;
+export function colour(t:number,out:number[]){const palette=[[.34,.64,.97],[.28,.77,.91],[.64,.94,.88],[1,.75,.38],[.82,.87,.91]],q=clamp(t,0,.99999)*4,i=floor(q),f=q-i;for(let k=0;k<3;k++)out[k]=mix(palette[i][k],palette[i+1][k],f);}
+export function projectField(point:number[],width:number,height:number,out:number[]){const portrait=width/height<.9,compress=portrait?.51:1,focal=min(width*.98/(13.6*compress),height*.72/5.7)*7.8,depth=7.8-point[2],x=mix(point[0],point[8]+(point[0]-point[8])/compress,point[7]);out[0]=width*.5+x*compress*focal/depth;out[1]=height*(portrait?.57:.485)-point[1]*focal/depth;out[2]=focal/depth;}
+
+export const vertexSource="precision highp float;\nattribute vec4 aSeed;uniform vec2 uResolution;uniform float uProgress,uTime,uDpr;\nvarying vec3 vColor;varying float vOpacity;varying vec2 vAxis;varying float vLength;\nconst float PI=3.141592653589793,TAU=6.283185307179586;\nfloat easeRange(float a,float b,float p){float t=clamp((p-a)/(b-a),0.,1.);return t*t*t*(t*(t*6.-15.)+10.);}\nvec3 shape(float u,float v,float stage){vec3 result;\n float a=u*TAU,x=-6.8*cos(a),y=0.,z=0.;\n if(stage<.5){\n  float q=x+.78*sin(v*3.8),ridge=3.08*exp(-pow(abs((q+1.15)/1.02),1.20))+1.60*exp(-pow(abs((q+3.65)/.82),1.34))+2.02*exp(-pow(abs((q-2.15)/1.18),1.30));\n  float etch=.18*sin(q*8.2+v*10.0)+.075*sin(q*21.3-v*6.0)+.034*sin(q*47.0+v*19.0);\n  y=-1.60+ridge*(1.-v*.24)+etch*(.9-v*.5)+v*.65;\n  z=1.35-v*7.6+.34*sin(q*.8+v*6.0)+.14*sin(a);\n }else if(stage<1.5){\n  // An asymmetrical cloud cyclone; its inner current comes towards the lens.\n  float angle=a+v*2.70,radius=.52+v*3.36;\n  x=.75+radius*cos(angle)*1.46+.46*sin(angle*2.+v*3.);\n  y=.45+radius*sin(angle)*.88+.32*sin(angle*3.+v*2.);\n  z=2.10*sin(angle)+.42*cos(angle*3.)+(1.-v)*1.15;\n }else if(stage<2.5){\n  if(v<.075){\n   float yy=2.35*cos(a),body=.26*exp(-pow((yy+.65)/.78,2.))+.028+.080*exp(-pow((yy-1.58)/.16,2.));\n   x=.16*sin(yy*1.15)+sin(a)*body*(.25+v*10.);y=yy;z=.52+.12*cos(a);\n  }else{\n   float wing=(v-.075)/.925,side=wing<.5?-1.:1.,j=mod(wing*2.,1.),f=(1.-cos(a))*.5;\n   float rootX=.12+j*5.4,rootY=.18+2.65*sin(j*PI*.81),tipX=rootX+.30+j*.90,tipY=rootY-.75-1.7*sin(j*PI);\n   float bend=sin(f*PI),xx=side*(mix(rootX,tipX,f)+bend*.52*(1.-j*.7)+sin(a)*.008),yy=mix(rootY,tipY,f)+bend*.24*(j*2.-1.);\n   x=xx*cos(.23)-yy*sin(.23);y=xx*sin(.23)+yy*cos(.23);z=.95*sin(j*PI)+side*.38+sin(a)*.22;\n  }\n }else{\n  if(v<.12){\n   float radius=.84*sqrt(v/.12)+.022*sin(a*13.+v*37.)+.016*cos(a*21.-v*53.);\n   x=2.85+radius*cos(a);y=2.05+radius*sin(a);z=-2.70;\n  }else{\n   float d=(v-.12)/.88;\n   x=-8.6*cos(a);z=-9.0+d*12.4+.32*sin(a);\n   y=-.58+.11*sin(x*2.8+z*1.8)+.045*sin(x*7.3-z*3.2);\n  }\n }\n result.x=x;result.y=y;result.z=z;\nreturn result;\n}\nvec3 view(float x,float y,float z,float p,float time){vec3 result;\n float orbit=.16*sin(p*TAU)*(1.-easeRange(.82,1.,p));\n float bank=-.04+.24*easeRange(.40,.70,p)-.20*easeRange(.80,1.,p);\n float swell=exp(-pow((p-.43)/.17,2.)),near=exp(-pow((p-.70)/.12,2.));\n float scale=.96+.22*swell+.17*near,push=.95*swell;\n float xx=x*cos(orbit)+z*sin(orbit),zz=-x*sin(orbit)+z*cos(orbit)+push;\n float yy=y;\n result.x=(xx*cos(bank)-yy*sin(bank))*scale-.18*sin(p*PI);\n result.y=(xx*sin(bank)+yy*cos(bank))*scale;\n result.z=zz;\nreturn result;\n}\nvec2 movement(float p){if(p<.34)return vec2(0.,easeRange(.17,.33,p));if(p<.70)return vec2(1.,easeRange(.44,.67,p));return vec2(2.,easeRange(.79,.98,p));}\nvec3 material(float u,float v,float r,float w,float p,vec2 score){\n vec3 a=shape(u,v,score.x),b=shape(u,v,score.x+1.);float curl=sin(score.y*PI),grain=(r-.5)*(.035+.72*pow(w,10.));\n vec3 point=mix(a,b,score.y)+curl*vec3(-(b.y-a.y)*.14,(b.x-a.x)*.10,.65*sin(u*TAU+v*4.));\n point+=grain*vec3(sin(w*TAU),cos(w*TAU),sin(r*TAU));\n point.y+=.13*sin(uTime*.52+point.x*.34)*easeRange(.49,.65,p)*(1.-easeRange(.79,.98,p));\n return view(point.x,point.y,point.z,p,uTime);\n}\nvec3 palette(float t){float q=clamp(t,0.,.99999)*4.;vec3 a=vec3(.34,.64,.97),b=vec3(.28,.77,.91),c=vec3(.64,.94,.88),d=vec3(1.,.75,.38),e=vec3(.82,.87,.91);if(q<1.)return mix(a,b,q);if(q<2.)return mix(b,c,q-1.);if(q<3.)return mix(c,d,q-2.);return mix(d,e,q-3.);}\nvec2 project(vec3 point,float p,float moon){\n float portrait=uResolution.x/uResolution.y<.9?1.:0.,compress=mix(1.,.51,portrait),focal=min(uResolution.x*.98/(13.6*compress),uResolution.y*.72/5.7)*7.8;\n if(moon>0.){vec3 centre=view(2.85,2.05,-2.70,p,uTime);point.x=mix(point.x,centre.x+(point.x-centre.x)/compress,moon);}\n return vec2(point.x*compress,point.y)*focal/(7.8-point.z);\n}\nvoid main(){\n float v=(floor(aSeed.y*128.)+.5)/128.,r=aSeed.z,w=aSeed.w,p=clamp(uProgress,0.,1.),u=fract(aSeed.x+uTime*(.012+.019*v));vec2 score=movement(p);\n vec3 point=material(u,v,r,w,p,score),ahead=material(u+.00035,v,r,w,p,score);\n float moon=score.x>1.5&&v<.12?score.y:0.;vec2 screen=project(point,p,moon),direction=project(ahead,p,moon)-screen;\n float end=easeRange(.80,.99,p),hue=clamp(.08+p*.68+v*.15+.08*sin(u*TAU),0.,1.);\n float carving=.38+.76*pow(abs(sin(v*19.7)),8.),gain=carving*(.34+.66*pow(w,3.));\n float reflection=exp(-pow((point.x-2.65)/.48,2.));\n gain*=mix(1.,v<.12?.45:.15+reflection*1.55,end);\n gain*=clamp(2./(1.+(7.8-point.z)*.18),.3,1.35);\n vColor=palette(mix(hue,.995,moon))*gain;vOpacity=.22+.30*r;\n vAxis=normalize(direction+vec2(.00001));float depthScale=clamp(8./(7.8-point.z),.55,2.3);\n vLength=(1.7+3.8*w*w)*sqrt(depthScale);gl_PointSize=vLength*uDpr;\n gl_Position=vec4(screen/uResolution*2.+vec2(0.,uResolution.x/uResolution.y<.9?-.14:.03),0.,1.);\n}";
+export const fragmentSource="precision mediump float;varying vec3 vColor;varying float vOpacity;varying vec2 vAxis;varying float vLength;\nvoid main(){vec2 q=(gl_PointCoord-.5)*2.;q.y=-q.y;vec2 a=vec2(dot(q,vAxis),dot(q,vec2(-vAxis.y,vAxis.x)));float core=exp(-a.x*a.x*2.5-a.y*a.y*vLength*vLength*1.9);if(core<.006)discard;gl_FragColor=vec4(vColor,core*vOpacity);}";
+export const postVertexSource="attribute vec2 aPosition;varying vec2 vUV;void main(){vUV=aPosition*.5+.5;gl_Position=vec4(aPosition,0.,1.);}";
+export const postFragmentSource="precision mediump float;uniform sampler2D uImage;uniform vec2 uTexel;uniform float uProgress;varying vec2 vUV;\nvoid main(){vec3 fine=texture2D(uImage,vUV).rgb,glow=vec3(0.);for(int i=0;i<4;i++){vec2 d=uTexel*(2.+float(i)*4.);glow+=(texture2D(uImage,vUV+d).rgb+texture2D(uImage,vUV+vec2(-d.x,d.y)).rgb+texture2D(uImage,vUV+vec2(d.x,-d.y)).rgb+texture2D(uImage,vUV-d).rgb)*.0625;}\n vec2 q=vUV-vec2(.52,.51);float haze=exp(-dot(q*vec2(.9,1.5),q*vec2(.9,1.5))*7.);\n vec3 ink=vec3(.003,.008,.017)+haze*mix(vec3(.005,.014,.023),vec3(.024,.012,.007),smoothstep(.65,1.,uProgress));\n vec3 light=vec3(1.)-exp(-(fine*2.9+glow*2.3));float vignette=1.-.28*smoothstep(.27,.81,length(vUV-.5));gl_FragColor=vec4((ink+light)*vignette,1.);}";

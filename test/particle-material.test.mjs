@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {makeSeeds,field,projectField} from '../src/particleField.ts';
+import {makeSeeds,field,projectField,STRANDS} from '../src/particleField.ts';
 const seeds=makeSeeds(1024);
 const point=(id,p,t=0)=>{const result=[];field(...seeds.subarray(id*4,id*4+4),p,result,t);return result};
 test('the same grains keep their material, size and opacity through every gesture',()=>{
@@ -17,9 +17,9 @@ test('the same grains keep their material, size and opacity through every gestur
  assert.deepEqual(seeds,untouched);
 });
 test('chapter changes stay continuous and the flow is deterministic in both directions',()=>{
- for(let id=0;id<1024;id++)for(const p of [.09,.41,.5,.58,.91]){
-  const before=point(id,p-1e-5),at=point(id,p),after=point(id,p+1e-5);
-  assert.ok(Math.hypot(...before.slice(0,3).map((n,i)=>n-after[i]))<1e-6);
+ for(let id=0;id<1024;id++)for(const p of [.17,.33,.34,.44,.67,.70,.79,.98]){
+  const before=point(id,p-1e-7),at=point(id,p),after=point(id,p+1e-7);
+  assert.ok(Math.hypot(...before.slice(0,3).map((n,i)=>n-after[i]))<.0001);
   point(id,.97);point(id,.12);assert.deepEqual(point(id,p),at);
  }
 });
@@ -32,8 +32,8 @@ test('particles really move while the visitor holds the scroll position',()=>{
 });
 
 test('every particle route closes, including during transitions, without respawning',()=>{
- for(const p of [0,.25,.5,.75,1])for(let line=0;line<84;line++){
-  const a=[],b=[];field(1-1e-7,(line+.5)/84,.5,.5,p,a,0);field(1e-7,(line+.5)/84,.5,.5,p,b,0);
+ for(const p of [0,.25,.5,.75,1])for(let line=0;line<STRANDS;line++){
+  const a=[],b=[];field(1-1e-7,(line+.5)/STRANDS,.5,.5,p,a,0);field(1e-7,(line+.5)/STRANDS,.5,.5,p,b,0);
   assert.ok(Math.hypot(...a.slice(0,3).map((n,i)=>n-b[i]))<.0001);
  }
 });

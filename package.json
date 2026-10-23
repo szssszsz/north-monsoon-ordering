@@ -7,7 +7,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "build": "node scripts/compose-particles.mjs && vite build",
+    "build": "vite build",
     "start": "node server/index.mjs",
     "check": "tsc --noEmit",
     "pretest": "npm run build",

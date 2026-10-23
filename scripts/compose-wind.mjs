@@ -7,6 +7,7 @@ function shape(u,v,stage,out){
   let q=x+.78*sin(v*3.8),ridge=3.08*exp(-pow(abs((q+1.15)/1.02),1.20))+1.60*exp(-pow(abs((q+3.65)/.82),1.34))+2.02*exp(-pow(abs((q-2.15)/1.18),1.30));
   let etch=.18*sin(q*8.2+v*10.0)+.075*sin(q*21.3-v*6.0)+.034*sin(q*47.0+v*19.0);
   y=-1.60+ridge*(1.-v*.24)+etch*(.9-v*.5)+v*.65;
+  if(v>.82){y=-1.63+.18*sin(a*3.+v*35.)+(v-.82)*1.5;}
   z=1.35-v*7.6+.34*sin(q*.8+v*6.0)+.14*sin(a);
  }else if(stage<1.5){
   // An asymmetrical cloud cyclone; its inner current comes towards the lens.
@@ -37,7 +38,7 @@ function shape(u,v,stage,out){
  out[0]=x;out[1]=y;out[2]=z;
 }
 function view(x,y,z,p,time,out){
- let orbit=.16*sin(p*TAU)*(1.-easeRange(.82,1.,p));
+ let orbit=(.16*sin(p*TAU)+.018*sin(time*.12))*(1.-easeRange(.82,1.,p));
  let bank=-.04+.24*easeRange(.40,.70,p)-.20*easeRange(.80,1.,p);
  let swell=exp(-pow((p-.43)/.17,2.)),near=exp(-pow((p-.70)/.12,2.));
  let scale=.96+.22*swell+.17*near,push=.95*swell;
@@ -56,8 +57,8 @@ function glsl(fn,args){
 const geometry=glsl(shape,['u','v','stage'])+'\n'+glsl(view,['x','y','z','p','time']);
 const jsGeometry=shape.toString().replace('(u,v,stage,out)','(u:number,v:number,stage:number,out:number[])')+'\n'+view.toString().replace('(x,y,z,p,time,out)','(x:number,y:number,z:number,p:number,time:number,out:number[])');
 const vertex=`precision highp float;
-attribute vec4 aSeed;uniform vec2 uResolution;uniform float uProgress,uTime,uDpr;
-varying vec3 vColor;varying float vOpacity;varying vec2 vAxis;varying float vLength;
+attribute vec4 aSeed;uniform vec2 uResolution;uniform float uProgress,uTime,uDpr;uniform vec2 uPointer;uniform float uReverie;
+varying vec3 vColor;varying float vOpacity;varying vec2 vAxis;varying float vLength;varying float vSoftness;
 const float PI=3.141592653589793,TAU=6.283185307179586;
 float easeRange(float a,float b,float p){float t=clamp((p-a)/(b-a),0.,1.);return t*t*t*(t*(t*6.-15.)+10.);}
 ${geometry}
@@ -67,6 +68,8 @@ vec3 material(float u,float v,float r,float w,float p,vec2 score){
  vec3 point=mix(a,b,score.y)+curl*vec3(-(b.y-a.y)*.14,(b.x-a.x)*.10,.65*sin(u*TAU+v*4.));
  point+=grain*vec3(sin(w*TAU),cos(w*TAU),sin(r*TAU));
  point.y+=.13*sin(uTime*.52+point.x*.34)*easeRange(.49,.65,p)*(1.-easeRange(.79,.98,p));
+ // Persistent atmospheric grains are members of the same pool in every chapter.
+ if(r>.985){float near=step(.995,r);point=vec3(-9.*cos(u*TAU)+sin(v*TAU)*.3,3.6*sin(u*TAU+v*5.),mix(-10.+v*4.,1.3+v*2.2,near));}
  return view(point.x,point.y,point.z,p,uTime);
 }
 vec3 palette(float t){float q=clamp(t,0.,.99999)*4.;vec3 a=vec3(.34,.64,.97),b=vec3(.28,.77,.91),c=vec3(.64,.94,.88),d=vec3(1.,.75,.38),e=vec3(.82,.87,.91);if(q<1.)return mix(a,b,q);if(q<2.)return mix(b,c,q-1.);if(q<3.)return mix(c,d,q-2.);return mix(d,e,q-3.);}
@@ -84,19 +87,26 @@ void main(){
  float reflection=exp(-pow((point.x-2.65)/.48,2.));
  gain*=mix(1.,v<.12?.45:.15+reflection*1.55,end);
  gain*=clamp(2./(1.+(7.8-point.z)*.18),.3,1.35);
- vColor=palette(mix(hue,.995,moon))*gain;vOpacity=.22+.30*r;
+ float air=step(.985,r),near=step(.995,r),fog=clamp(exp(-max(0.,-point.z)*.065),.35,1.);
+ vec3 tint=palette(mix(hue,.995,moon));
+ // Five restrained timbres recur as one score; no separate particle scenes.
+ if(uReverie>.5){float band=floor(v*5.);vec3 note=band<1.?vec3(.45,.73,.88):band<2.?vec3(.86,.49,.66):band<3.?vec3(.62,.77,.60):band<4.?vec3(.83,.64,.41):vec3(.68,.55,.83);tint=mix(tint,note,.28*(1.-moon));}
+ vColor=tint*mix(gain,mix(.25,.42,near),air)*fog;vOpacity=.22+.30*r;
  vAxis=normalize(direction+vec2(.00001));float depthScale=clamp(8./(7.8-point.z),.55,2.3);
- vLength=(1.7+3.8*w*w)*sqrt(depthScale);gl_PointSize=vLength*uDpr;
+ vSoftness=clamp((point.z-.6)/3.,0.,1.)*pow(w,7.);
+ vSoftness=max(vSoftness,step(.995,r)*.85);
+ vLength=mix((1.55+3.6*w*w)*sqrt(depthScale),7.5+7.*w,vSoftness);gl_PointSize=vLength*uDpr;
+ screen+=uPointer*clamp(point.z+5.,0.,9.)*2.4;
  gl_Position=vec4(screen/uResolution*2.+vec2(0.,uResolution.x/uResolution.y<.9?-.14:.03),0.,1.);
 }`;
-const fragment=`precision mediump float;varying vec3 vColor;varying float vOpacity;varying vec2 vAxis;varying float vLength;
-void main(){vec2 q=(gl_PointCoord-.5)*2.;q.y=-q.y;vec2 a=vec2(dot(q,vAxis),dot(q,vec2(-vAxis.y,vAxis.x)));float core=exp(-a.x*a.x*2.5-a.y*a.y*vLength*vLength*1.9);if(core<.006)discard;gl_FragColor=vec4(vColor,core*vOpacity);}`;
+const fragment=`precision mediump float;varying vec3 vColor;varying float vOpacity;varying vec2 vAxis;varying float vLength;varying float vSoftness;
+void main(){vec2 q=(gl_PointCoord-.5)*2.;q.y=-q.y;vec2 a=vec2(dot(q,vAxis),dot(q,vec2(-vAxis.y,vAxis.x)));float sharp=exp(-a.x*a.x*2.5-a.y*a.y*vLength*vLength*1.9);float soft=exp(-dot(q,q)*4.5)*.15;float core=mix(sharp,soft,vSoftness);if(core<.006)discard;gl_FragColor=vec4(vColor,core*vOpacity);}`;
 const postVertex=`attribute vec2 aPosition;varying vec2 vUV;void main(){vUV=aPosition*.5+.5;gl_Position=vec4(aPosition,0.,1.);}`;
 const postFragment=`precision mediump float;uniform sampler2D uImage;uniform vec2 uTexel;uniform float uProgress;varying vec2 vUV;
 void main(){vec3 fine=texture2D(uImage,vUV).rgb,glow=vec3(0.);for(int i=0;i<4;i++){vec2 d=uTexel*(2.+float(i)*4.);glow+=(texture2D(uImage,vUV+d).rgb+texture2D(uImage,vUV+vec2(-d.x,d.y)).rgb+texture2D(uImage,vUV+vec2(d.x,-d.y)).rgb+texture2D(uImage,vUV-d).rgb)*.0625;}
  vec2 q=vUV-vec2(.52,.51);float haze=exp(-dot(q*vec2(.9,1.5),q*vec2(.9,1.5))*7.);
  vec3 ink=vec3(.003,.008,.017)+haze*mix(vec3(.005,.014,.023),vec3(.024,.012,.007),smoothstep(.65,1.,uProgress));
- vec3 light=vec3(1.)-exp(-(fine*2.9+glow*2.3));float vignette=1.-.28*smoothstep(.27,.81,length(vUV-.5));gl_FragColor=vec4((ink+light)*vignette,1.);}`;
+ vec3 light=vec3(1.)-exp(-(fine*2.65+glow*1.8));float vignette=1.-.28*smoothstep(.27,.81,length(vUV-.5));gl_FragColor=vec4((ink+light)*vignette,1.);}`;
 const cpu=`// Generated from scripts/compose-wind.mjs. No images, meshes or sampled artwork.
 const {sin,cos,exp,pow,abs,min,max,floor,sqrt}=Math;const PI=Math.PI,TAU=PI*2;
 export const STRANDS=128;
@@ -124,13 +134,16 @@ function camera(x:number,y:number,z:number,out:number[]){for(let k=0;k<3;k++)out
 export function field(u:number,v:number,r:number,w:number,p:number,out:number[],time=0){
  prepare(p,time);const line=min(STRANDS-1,floor(v*STRANDS)),material=(line+.5)/STRANDS,phase=mod(u+time*(.012+.019*material),1),stage=stageNow,s=blendNow;sample(phase,line,stage,a);sample(phase,line,stage+1,b);
  const curl=sin(s*PI),grain=(r-.5)*(.035+.72*pow(w,10));
- const x=mix(a[0],b[0],s)-(b[1]-a[1])*curl*.14+grain*sin(w*TAU);
- const y=mix(a[1],b[1],s)+(b[0]-a[0])*curl*.10+grain*cos(w*TAU);
- const z=mix(a[2],b[2],s)+curl*.65*sin(phase*TAU+material*4)+grain*sin(r*TAU);
- camera(x,y+sin(time*.52+x*.34)*flapNow,z,out);out[3]=.22+.30*r;out[4]=material;out[5]=.45+.65*w;out[6]=phase;
+ let x=mix(a[0],b[0],s)-(b[1]-a[1])*curl*.14+grain*sin(w*TAU);
+ let y=mix(a[1],b[1],s)+(b[0]-a[0])*curl*.10+grain*cos(w*TAU);
+ let z=mix(a[2],b[2],s)+curl*.65*sin(phase*TAU+material*4)+grain*sin(r*TAU);
+ if(r>.985){x=-9*cos(phase*TAU)+sin(material*TAU)*.3;y=3.6*sin(phase*TAU+material*5);z=r>.995?1.3+material*2.2:-10+material*4;}
+ camera(x,y+sin(time*.52+x*.34)*flapNow*(r>.985?0:1),z,out);out[3]=.22+.30*r;out[4]=material;out[5]=.45+.65*w;out[6]=phase;
  out[7]=stage>1.5&&material<.12?s:0;out[8]=centre[0];
  const carving=.38+.76*pow(abs(sin(material*19.7)),8),end=endNow,reflection=exp(-pow((out[0]-2.65)/.48,2));
  out[9]=carving*(.34+.66*pow(w,3))*mix(1,material<.12?.45:.15+reflection*1.55,end)*clamp(2/(1+(7.8-out[2])*.18),.3,1.35);
+ out[9]=(r>.985?(r>.995?.42:.25):out[9])*clamp(exp(-max(0,-out[2])*.065),.35,1);
+ out[10]=max(clamp((out[2]-.6)/3)*pow(w,7),r>.995?.85:0);
 }
 export function colour(t:number,out:number[]){const palette=[[.34,.64,.97],[.28,.77,.91],[.64,.94,.88],[1,.75,.38],[.82,.87,.91]],q=clamp(t,0,.99999)*4,i=floor(q),f=q-i;for(let k=0;k<3;k++)out[k]=mix(palette[i][k],palette[i+1][k],f);}
 export function projectField(point:number[],width:number,height:number,out:number[]){const portrait=width/height<.9,compress=portrait?.51:1,focal=min(width*.98/(13.6*compress),height*.72/5.7)*7.8,depth=7.8-point[2],x=mix(point[0],point[8]+(point[0]-point[8])/compress,point[7]);out[0]=width*.5+x*compress*focal/depth;out[1]=height*(portrait?.57:.485)-point[1]*focal/depth;out[2]=focal/depth;}

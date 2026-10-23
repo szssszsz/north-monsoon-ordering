@@ -37,3 +37,14 @@ test('every particle route closes, including during transitions, without respawn
   assert.ok(Math.hypot(...a.slice(0,3).map((n,i)=>n-b[i]))<.0001);
  }
 });
+
+test('persistent air strata preserve distant and near depth through the entire story',()=>{
+ for(const p of [0,.2,.39,.56,.73,.9,1]){
+  const far=[],near=[];
+  field(.35,.5,.99,.8,p,far,5);field(.35,.5,.999,.8,p,near,5);
+  assert.ok(far[2]<-3,'distant grains stay behind the main drawing');
+  assert.ok(near[2]>1&&near[2]<6,'foreground stays on the safe side of the camera');
+  assert.ok(near[10]>=.85,'near grains retain the deliberate soft focus');
+  assert.ok(far[9]>0&&near[9]>0,'both strata remain illuminated in every chapter');
+ }
+});

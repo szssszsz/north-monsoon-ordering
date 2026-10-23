@@ -1,13 +1,8 @@
 import {useEffect,useState} from 'react';
 import {ArrowDown,ArrowUpRight} from 'lucide-react';
 import Atmosphere from './Atmosphere';
+import {chapterText as CHAPTERS} from './edition';
 
-const CHAPTERS=[
- {en:'I · BEFORE THE WORLD AWAKES',name:'万籁',title:'山河未醒。',text:'一缕清冽，穿过万籁。',detail:'THE STILLNESS'},
- {en:'II · A WIND FROM A THOUSAND MILES',name:'风起',title:'风起，万境开。',text:'听见辽阔，向你奔来。',detail:'THE AWAKENING'},
- {en:'III · CARRIED BY THE INFINITE',name:'振羽',title:'借长风，赴山海。',text:'万里风土，托起一瞬相逢。',detail:'THE ASCENT'},
- {en:'IV · A PLACE BENEATH THE MOON',name:'归席',title:'月落一席。',text:'山河归于静谧，你我恰好在此。',detail:'THE ARRIVAL'},
-];
 const CUTS=[.25,.56,.87];
 function ease(a:number,b:number,p:number){const t=Math.max(0,Math.min(1,(p-a)/(b-a)));return t*t*(3-2*t)}
 export default function WindJourney(){

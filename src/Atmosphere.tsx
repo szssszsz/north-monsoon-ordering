@@ -1,6 +1,7 @@
 import {useEffect,useRef} from 'react';
 import {makeSeeds,vertexSource,fragmentSource,postVertexSource,postFragmentSource} from './particleField';
 import {drawSoftwareField} from './particleFallback';
+import {isReverie} from './edition';
 
 /** One living light field, contained entirely inside the story viewport. */
 export default function Atmosphere(){
@@ -10,9 +11,10 @@ export default function Atmosphere(){
   const root:HTMLDivElement=layerNode;
   const host=root.parentElement!,journey=document.getElementById('journey')!;
   const gl=canvas.getContext('webgl',{alpha:false,antialias:false,depth:false,premultipliedAlpha:false}),cpu=backup.getContext('2d');
-  const small=innerWidth<640,count=small?72000:180000,seeds=makeSeeds(count),fallbackSeeds=seeds.subarray(0,(small?12000:18000)*4);
+  const small=innerWidth<640,count=small?72000:180000,seeds=makeSeeds(count),fallbackSeeds=seeds.subarray(0,(small?12000:14000)*4);
   const motion=matchMedia('(prefers-reduced-motion: reduce)');
   let width=0,height=0,dpr=1,targetProgress=0,progress=0,frame=0,paintCount=0,active=false,working=false,disposed=false,clock=0,lastTime=0,lastPaint=0;
+  let pointerX=0,pointerY=0,targetX=0,targetY=0;
   let particles:WebGLProgram|null=null,post:WebGLProgram|null=null,points:WebGLBuffer|null=null,quad:WebGLBuffer|null=null,image:WebGLTexture|null=null,target:WebGLFramebuffer|null=null;
   let particleUniforms:Record<string,WebGLUniformLocation|null>={},postUniforms:Record<string,WebGLUniformLocation|null>={};
   const mode=(webgl:boolean)=>{working=webgl;root.dataset.renderer=webgl?'webgl-flow':'canvas-flow';canvas.hidden=!webgl;backup.hidden=webgl;root.dataset.particles=String(webgl?count:fallbackSeeds.length/4)};
@@ -26,7 +28,7 @@ export default function Atmosphere(){
    quad=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,quad);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
    image=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,image);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
    target=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,target);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,image,0);
-   particleUniforms=Object.fromEntries(['uResolution','uProgress','uTime','uDpr'].map(n=>[n,gl.getUniformLocation(particles!,n)]));
+   particleUniforms=Object.fromEntries(['uResolution','uProgress','uTime','uDpr','uPointer','uReverie'].map(n=>[n,gl.getUniformLocation(particles!,n)]));
    postUniforms=Object.fromEntries(['uImage','uTexel','uProgress'].map(n=>[n,gl.getUniformLocation(post!,n)]));mode(true);
   }
   function schedule(){
@@ -46,23 +48,26 @@ export default function Atmosphere(){
    frame=0;if(!active||document.hidden||disposed)return;
    if(!motion.matches&&timestamp-lastPaint<(working?15:32)){frame=requestAnimationFrame(draw);return;}
    const dt=lastTime?Math.min(.06,(timestamp-lastTime)/1000):1/60;lastTime=timestamp;lastPaint=timestamp;
+   pointerX+=(targetX-pointerX)*(1-Math.exp(-dt*2));pointerY+=(targetY-pointerY)*(1-Math.exp(-dt*2));
    clock+=motion.matches?0:dt;progress=motion.matches?targetProgress:progress+(targetProgress-progress)*(1-Math.exp(-dt*9));
    if(Math.abs(progress-targetProgress)<.00001)progress=targetProgress;
    if(gl&&working&&particles&&post){
     gl.viewport(0,0,canvas!.width,canvas!.height);gl.bindFramebuffer(gl.FRAMEBUFFER,target);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE);gl.useProgram(particles);
     gl.bindBuffer(gl.ARRAY_BUFFER,points);const seed=gl.getAttribLocation(particles,'aSeed');gl.enableVertexAttribArray(seed);gl.vertexAttribPointer(seed,4,gl.FLOAT,false,0,0);
-    gl.uniform2f(particleUniforms.uResolution,width,height);gl.uniform1f(particleUniforms.uProgress,progress);gl.uniform1f(particleUniforms.uTime,clock);gl.uniform1f(particleUniforms.uDpr,dpr);gl.drawArrays(gl.POINTS,0,count);gl.disableVertexAttribArray(seed);
+    gl.uniform2f(particleUniforms.uResolution,width,height);gl.uniform1f(particleUniforms.uProgress,progress);gl.uniform1f(particleUniforms.uTime,clock);gl.uniform1f(particleUniforms.uDpr,dpr);gl.uniform2f(particleUniforms.uPointer,motion.matches?0:pointerX,motion.matches?0:pointerY);gl.uniform1f(particleUniforms.uReverie,isReverie?1:0);gl.drawArrays(gl.POINTS,0,count);gl.disableVertexAttribArray(seed);
     gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.disable(gl.BLEND);gl.useProgram(post);gl.bindBuffer(gl.ARRAY_BUFFER,quad);const position=gl.getAttribLocation(post,'aPosition');gl.enableVertexAttribArray(position);gl.vertexAttribPointer(position,2,gl.FLOAT,false,0,0);
     gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,image);gl.uniform1i(postUniforms.uImage,0);gl.uniform2f(postUniforms.uTexel,1/canvas!.width,1/canvas!.height);gl.uniform1f(postUniforms.uProgress,progress);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);gl.disableVertexAttribArray(position);
-    if(gl.getError()!==gl.NO_ERROR){mode(false);if(cpu)drawSoftwareField(cpu,width,height,progress,fallbackSeeds,clock);}
-   }else if(cpu)drawSoftwareField(cpu,width,height,progress,fallbackSeeds,clock);
+    if(gl.getError()!==gl.NO_ERROR){mode(false);if(cpu)drawSoftwareField(cpu,width,height,progress,fallbackSeeds,clock,motion.matches?0:pointerX,motion.matches?0:pointerY);}
+   }else if(cpu)drawSoftwareField(cpu,width,height,progress,fallbackSeeds,clock,motion.matches?0:pointerX,motion.matches?0:pointerY);
    root.dataset.state='ready';root.dataset.progress=progress.toFixed(6);root.dataset.time=clock.toFixed(3);root.dataset.frame=String(++paintCount);
    if(!motion.matches)frame=requestAnimationFrame(draw);
   }
   try{initialise()}catch{destroy();mode(false)}resize();
   const visible=()=>{lastTime=0;if(document.hidden){cancelAnimationFrame(frame);frame=0}else schedule()},lost=(e:Event)=>{e.preventDefault();mode(false);schedule()},restored=()=>{destroy();try{initialise();resize()}catch{mode(false);schedule()}};
+  const pointer=(e:PointerEvent)=>{if(!active||e.pointerType!=='mouse')return;targetX=(e.clientX/width-.5)*2;targetY=-(e.clientY/height-.5)*2;};
+  window.addEventListener('pointermove',pointer,{passive:true});
   window.addEventListener('scroll',schedule,{passive:true});window.addEventListener('resize',resize);document.addEventListener('visibilitychange',visible);motion.addEventListener('change',schedule);canvas.addEventListener('webglcontextlost',lost);canvas.addEventListener('webglcontextrestored',restored);
-  return()=>{disposed=true;cancelAnimationFrame(frame);window.removeEventListener('scroll',schedule);window.removeEventListener('resize',resize);document.removeEventListener('visibilitychange',visible);motion.removeEventListener('change',schedule);canvas.removeEventListener('webglcontextlost',lost);canvas.removeEventListener('webglcontextrestored',restored);destroy()};
+  return()=>{window.removeEventListener('pointermove',pointer);disposed=true;cancelAnimationFrame(frame);window.removeEventListener('scroll',schedule);window.removeEventListener('resize',resize);document.removeEventListener('visibilitychange',visible);motion.removeEventListener('change',schedule);canvas.removeEventListener('webglcontextlost',lost);canvas.removeEventListener('webglcontextrestored',restored);destroy()};
  },[]);
  return <div className="wind-art" ref={layer} aria-hidden="true"><canvas ref={gpu}/><canvas ref={software} hidden/></div>;
 }

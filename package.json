@@ -7,12 +7,15 @@
     "node": ">=24"
   },
   "scripts": {
-    "build": "node scripts/compose-wind.mjs && vite build",
+    "build": "node scripts/build-editions.mjs",
     "start": "node server/index.mjs",
     "check": "tsc --noEmit",
     "pretest": "npm run build",
     "test": "node --test test/*.test.mjs",
-    "precheck": "node scripts/compose-wind.mjs"
+    "precheck": "node scripts/compose-wind.mjs",
+    "build:single": "node scripts/compose-wind.mjs && vite build",
+    "build:classic": "node scripts/compose-wind.mjs && vite build --mode classic",
+    "build:reverie": "node scripts/compose-wind.mjs && vite build --mode reverie"
   },
   "dependencies": {
     "lucide-react": "1.31.0",
